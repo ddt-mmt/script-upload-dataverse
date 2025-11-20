@@ -12,9 +12,11 @@ Aplikasi berbasis CLI ini dirancang untuk memfasilitasi proses unggah file ke Da
 
 ## Fitur Utama
 
+*   **Dukungan Multi-Bahasa**: Pilih antara Bahasa Indonesia dan English saat memulai aplikasi, atau ubah kapan saja dari menu utama.
 *   **Unggah di Latar Belakang**: Jalankan proses unggah tanpa mengunci terminal Anda.
 *   **Pemantauan Real-time**: Pantau log unggahan secara langsung untuk melihat progres.
-*   **Informasi Detail Unggah**: Dapatkan durasi, waktu mulai/selesai, dan kecepatan rata-rata unggah setelah proses selesai.
+*   **Informasi Detail Unggah**: Dapatkan durasi, waktu mulai/selesai (dengan format yang jelas), dan kecepatan rata-rata unggah setelah proses selesai.
+*   **Feedback Proses Unggah**: Pesan informatif muncul setelah 100% transfer file untuk memberitahu bahwa proses masih menunggu respons server, mencegah kekhawatiran proses macet.
 *   **Penanganan Proses**: Opsi untuk menghentikan proses unggah yang sedang berjalan.
 *   **Keamanan**: Informasi sensitif seperti API Key tidak disimpan di disk.
 
@@ -41,7 +43,15 @@ Jalankan skrip utama dari terminal:
 ./upload_dataverse.sh
 ```
 
-Anda akan disajikan dengan menu interaktif:
+### Pemilihan Bahasa
+
+Saat pertama kali menjalankan aplikasi, Anda akan diminta untuk memilih bahasa (Bahasa Indonesia atau English). Pilihan Anda akan disimpan untuk penggunaan selanjutnya. Anda juga dapat mengubah bahasa kapan saja dari menu utama.
+
+### Menu Utama
+
+Aplikasi akan menyajikan menu interaktif. Tampilan menu akan bervariasi tergantung pada apakah ada proses unggah yang sedang berjalan atau tidak.
+
+**Contoh Tampilan Menu (Tidak ada proses aktif):**
 
 ```
 #################################################
@@ -55,26 +65,36 @@ Pilih salah satu opsi:
   1. Mulai Proses Upload Baru
   2. Lihat Log Terakhir
   3. Keluar
+  4. Ganti Bahasa
 -------------------------------------------------
 ```
 
 ### Opsi Menu
 
-*   **1. Mulai Proses Upload Baru**:
+*   **Mulai Proses Upload Baru (1 atau 's')**:
     *   Akan meminta Anda untuk memasukkan detail unggahan seperti API Key, Persistent ID, path file, deskripsi, dll.
     *   Proses unggah akan dimulai di latar belakang.
     *   **PENTING**: Informasi rahasia seperti API Key tidak akan disimpan di disk.
 
-*   **2. Pantau Proses Upload (muncul jika ada proses berjalan)**:
-    *   Menampilkan log unggahan secara *real-time*. Tekan `Ctrl+C` untuk kembali ke menu utama.
+*   **Pantau Proses Upload (1)**:
+    *   (Muncul jika ada proses berjalan) Menampilkan log unggahan secara *real-time*. Tekan `Ctrl+C` untuk kembali ke menu utama.
 
-*   **3. Hentikan Proses Upload (muncul jika ada proses berjalan)**:
-    *   Mengirim sinyal untuk menghentikan proses unggah yang sedang berjalan di latar belakang.
+*   **Hentikan Proses Upload (2)**:
+    *   (Muncul jika ada proses berjalan) Mengirim sinyal untuk menghentikan proses unggah yang sedang berjalan di latar belakang.
 
-*   **4. Lihat Log Keseluruhan**:
+*   **Lihat Log Terakhir (2 atau 'l')**:
     *   Menampilkan seluruh isi file log `run/upload.log` menggunakan `less`.
 
-*   **5. Keluar**:
+*   **Bersihkan Status Proses Usang ('c')**:
+    *   (Muncul jika ada file PID usang) Menghapus file status proses yang mungkin tertinggal dari proses sebelumnya yang tidak berhenti dengan benar.
+
+*   **Ganti Bahasa (4 atau 'L')**:
+    *   Memungkinkan Anda untuk mengubah bahasa antarmuka aplikasi.
+
+*   **Lihat Log Keseluruhan (3)**:
+    *   (Muncul jika ada proses berjalan) Menampilkan seluruh isi file log `run/upload.log` menggunakan `less`.
+
+*   **Keluar (3, 4, atau 'q')**:
     *   Keluar dari aplikasi.
 
 ## Struktur Proyek
@@ -83,14 +103,18 @@ Pilih salah satu opsi:
 .
 ├── .gitignore
 ├── README.md
-├── upload_dataverse.sh         # Skrip menu utama
+├── upload_dataverse.sh         # Skrip menu utama, penanganan bahasa, dan loop menu
 ├── scripts/
-│   ├── start_upload.sh         # Logika inti untuk memulai unggahan
-│   ├── monitor_upload.sh       # Skrip untuk memantau log unggahan
-│   └── stop_upload.sh          # Skrip untuk menghentikan unggahan
+│   ├── start_upload.sh         # Logika inti untuk memulai unggahan, input pengguna, dan feedback progres
+│   ├── monitor_upload.sh       # Skrip untuk memantau log unggahan secara real-time
+│   └── stop_upload.sh          # Skrip untuk menghentikan unggahan yang sedang berjalan
+├── lang/                       # Direktori berisi file bahasa
+│   ├── id.sh                   # Pesan dalam Bahasa Indonesia
+│   └── en.sh                   # Pesan dalam Bahasa Inggris
 └── run/                        # Direktori untuk file log dan PID (diabaikan oleh Git)
     ├── upload.log              # Log dari proses unggah
-    └── upload.pid              # File yang berisi PID proses unggah
+    ├── upload.pid              # File yang berisi PID proses unggah
+    └── config.sh               # Menyimpan preferensi bahasa pengguna
 ```
 
 ## Kontribusi
