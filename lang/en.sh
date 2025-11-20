@@ -102,3 +102,13 @@ MSG_SENDING_STOP_SIGNAL="Sending stop signal to upload process with PID: %s..."
 MSG_PROCESS_NOT_STOPPED_NORMALLY="Process did not stop normally. Attempting to force stop (kill -9)..."
 MSG_UPLOAD_STOPPED="Upload process has been stopped."
 MSG_STATUS_FILE_CLEANED="Status file has been cleaned."
+
+# New messages for language selection
+MSG_MENU_CHANGE_LANGUAGE="5. Change Language" # For running process menu
+MSG_MENU_CHANGE_LANGUAGE_STALE="L. Change Language" # For stale PID menu
+MSG_MENU_CHANGE_LANGUAGE_NO_PROCESS="4. Change Language" # For no process menu
+
+# Updated prompts to reflect new options
+MSG_PROMPT_ENTER_CHOICE_RUNNING="Enter your choice [1-5]: " # Updated from [1-4]
+MSG_PROMPT_ENTER_CHOICE_STALE="Enter your choice [s, l, c, L, q]: " # Updated from [s, l, c, q]
+MSG_PROMPT_ENTER_CHOICE_NO_PROCESS="Enter your choice [1-4]: " # Updated from [1-3]

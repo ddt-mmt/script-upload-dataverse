@@ -103,3 +103,13 @@ MSG_SENDING_STOP_SIGNAL="Mengirim sinyal berhenti ke proses upload dengan PID: %
 MSG_PROCESS_NOT_STOPPED_NORMALLY="Proses tidak berhenti dengan normal. Mencoba menghentikan secara paksa (kill -9)..."
 MSG_UPLOAD_STOPPED="Proses upload telah dihentikan."
 MSG_STATUS_FILE_CLEANED="File status telah dibersihkan."
+
+# New messages for language selection
+MSG_MENU_CHANGE_LANGUAGE="5. Ganti Bahasa" # For running process menu
+MSG_MENU_CHANGE_LANGUAGE_STALE="L. Ganti Bahasa" # For stale PID menu
+MSG_MENU_CHANGE_LANGUAGE_NO_PROCESS="4. Ganti Bahasa" # For no process menu
+
+# Updated prompts to reflect new options
+MSG_PROMPT_ENTER_CHOICE_RUNNING="Masukkan pilihan Anda [1-5]: " # Updated from [1-4]
+MSG_PROMPT_ENTER_CHOICE_STALE="Masukkan pilihan Anda [s, l, c, L, q]: " # Updated from [s, l, c, q]
+MSG_PROMPT_ENTER_CHOICE_NO_PROCESS="Masukkan pilihan Anda [1-4]: " # Updated from [1-3]

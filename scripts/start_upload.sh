@@ -1,9 +1,40 @@
 #!/bin/bash
 
 # File status dan log
+# Mengambil variabel global dari skrip utama
 RUN_DIR="run"
 PID_FILE="$RUN_DIR/upload.pid"
 LOG_FILE="$RUN_DIR/upload.log"
+CONFIG_FILE="$RUN_DIR/config.sh"
+LANG_DIR="lang"
+
+# Pastikan direktori lang ada
+if [ ! -d "$LANG_DIR" ]; then
+    echo "Error: Direktori bahasa '$LANG_DIR' tidak ditemukan. Pastikan file bahasa ada." >&2
+    exit 1
+fi
+
+# Muat preferensi bahasa
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+else
+    # Jika tidak ada config, default ke id
+    LANG_CODE="id"
+fi
+
+# Fungsi untuk memuat pesan bahasa (duplikasi dari upload_dataverse.sh untuk kemandirian)
+load_language_messages() {
+    local lang_code=$1
+    if [ -f "$LANG_DIR/$lang_code.sh" ]; then
+        source "$LANG_DIR/$lang_code.sh"
+    else
+        # Fallback ke Bahasa Indonesia jika file bahasa tidak ditemukan
+        source "$LANG_DIR/id.sh"
+        echo "Peringatan: File bahasa '$lang_code.sh' tidak ditemukan. Menggunakan Bahasa Indonesia." >&2
+    fi
+}
+load_language_messages "$LANG_CODE"
+
 
 # --- Fungsi Inti Upload ---
 # Fungsi ini akan dijalankan di sub-shell background
@@ -31,13 +62,13 @@ run_upload() {
     
     local api_url="https://cibinong-data.brin.go.id/api/datasets/:persistentId/add?persistentId=$persistent_id"
 
-    echo "================================================================"
-    echo "MEMULAI PROSES UNGGAH DI LATAR BELAKANG"
-    echo "================================================================"
-    echo "Waktu Mulai      : $(date)"
-    echo "File untuk diunggah: $file_path"
-    echo "Ukuran File      : $(awk -v size="$file_size_bytes" 'BEGIN { if (size >= 1073741824) { printf "%.2f GB", size / 1073741824 } else if (size >= 1048576) { printf "%.2f MB", size / 1048576 } else if (size >= 1024) { printf "%.2f KB", size / 1024 } else { printf "%d B", size } }') "
-    echo "URL Target       : $api_url"
+    echo "================================================================="
+    echo "$MSG_STARTING_UPLOAD_BACKGROUND_TITLE"
+    echo "================================================================="
+    echo "$MSG_TIME_START$(date)"
+    echo "$MSG_FILE_TO_UPLOAD$file_path"
+    echo "$MSG_FILE_SIZE$(awk -v size="$file_size_bytes" 'BEGIN { if (size >= 1073741824) { printf "%.2f GB", size / 1073741824 } else if (size >= 1048576) { printf "%.2f MB", size / 1048576 } else if (size >= 1024) { printf "%.2f KB", size / 1024 } else { printf "%d B", size } }') "
+    echo "$MSG_URL_TARGET$api_url"
     echo "----------------------------------------------------------------"
     
     # Konfigurasi Coba Ulang
@@ -51,7 +82,7 @@ run_upload() {
     CURL_EXIT_CODE=1
     for (( i=1; i<=MAX_RETRIES; i++ )); do
         echo
-        echo "Mencoba unggah (Percobaan $i dari $MAX_RETRIES)..."
+        printf "$MSG_TRYING_UPLOAD\n" "$i" "$MAX_RETRIES"
         
         curl --progress-bar --tlsv1.2 \
           -o "$output_file" \
@@ -65,40 +96,41 @@ run_upload() {
 
         if [ $CURL_EXIT_CODE -eq 0 ]; then
             echo
-            echo "✅ Unggahan berhasil pada percobaan ke-$i."
+            printf "$MSG_UPLOAD_SUCCESS_ATTEMPT\n" "$i"
             
             local END_TIME=$(date +%s)
             local DURATION=$((END_TIME - START_TIME))
 
             echo "----------------------------------------------------------------"
-            echo "Waktu Mulai Unggah : $(awk 'BEGIN { print strftime("%Y-%m-%d %H:%M:%S", '$START_TIME') }')"
-            echo "Waktu Selesai Unggah: $(awk 'BEGIN { print strftime("%Y-%m-%d %H:%M:%S", '$END_TIME') }')"
-            echo "Durasi Unggah      : $(($DURATION / 60)) menit $(($DURATION % 60)) detik"
-
+            echo "$MSG_UPLOAD_START_TIME$(awk 'BEGIN { print strftime("%Y-%m-%d %H:%M:%S", '$START_TIME') }')"
+            echo "$MSG_UPLOAD_END_TIME$(awk 'BEGIN { print strftime("%Y-%m-%d %H:%M:%S", '$END_TIME') }')"
+            printf "$MSG_UPLOAD_DURATION%s menit %s detik\n" "$(($DURATION / 60))" "$(($DURATION % 60))"
+            
             if [ "$DURATION" -gt 0 ] && [ "$file_size_bytes" -gt 0 ]; then
                 local AVG_SPEED_BPS=$((file_size_bytes / DURATION))
                 local AVG_SPEED_KBPS=$(awk -v speed="$AVG_SPEED_BPS" 'BEGIN { printf "%.2f", speed / 1024 }')
                 local AVG_SPEED_MBPS=$(awk -v speed="$AVG_SPEED_BPS" 'BEGIN { printf "%.2f", speed / 1048576 }')
 
+                echo -n "$MSG_AVG_SPEED"
                 if (( $(echo "$AVG_SPEED_MBPS > 1" | bc -l) )); then
-                    echo "Kecepatan Rata-rata: ${AVG_SPEED_MBPS} MB/s"
+                    echo "${AVG_SPEED_MBPS} MB/s"
                 elif (( $(echo "$AVG_SPEED_KBPS > 1" | bc -l) )); then
-                    echo "Kecepatan Rata-rata: ${AVG_SPEED_KBPS} KB/s"
+                    echo "${AVG_SPEED_KBPS} KB/s"
                 else
-                    echo "Kecepatan Rata-rata: ${AVG_SPEED_BPS} B/s"
+                    echo "${AVG_SPEED_BPS} B/s"
                 fi
-                echo "Catatan: Kecepatan min/max sulit diukur secara akurat dalam skrip shell."
+                echo "$MSG_SPEED_NOTE"
             fi
             echo "----------------------------------------------------------------"
             break
         else
             echo
-            echo "❌ Percobaan ke-$i gagal dengan kode keluar: $CURL_EXIT_CODE."
+            printf "$MSG_UPLOAD_FAILED_ATTEMPT\n" "$i" "$CURL_EXIT_CODE"
             if [ $i -lt $MAX_RETRIES ]; then
-                echo "Menunggu $RETRY_DELAY_SECONDS detik sebelum mencoba lagi..."
+                printf "$MSG_WAITING_RETRY\n" "$RETRY_DELAY_SECONDS"
                 sleep $RETRY_DELAY_SECONDS
             else
-                echo "Batas maksimum percobaan ($MAX_RETRIES) telah tercapai."
+                printf "$MSG_MAX_RETRIES_REACHED\n" "$MAX_RETRIES"
             fi
         fi
     done
@@ -107,22 +139,22 @@ run_upload() {
     if [ $CURL_EXIT_CODE -eq 0 ]; then
         sleep 2 # Tambahkan jeda singkat agar tidak tumpang tindih dengan output curl terakhir
         echo "================================================================================"
-        echo " Transfer file selesai. Menunggu respons akhir dari server Dataverse..."
-        echo " Ini mungkin memerlukan beberapa saat tergantung ukuran file dan beban server."
+        echo " $MSG_TRANSFER_COMPLETE_WAITING_SERVER_RESPONSE"
+        echo " $MSG_SERVER_RESPONSE_DELAY_NOTE"
         echo "================================================================================"
     fi
 
     rm "$JSON_PAYLOAD_FILE"
 
-    echo "================================================================"
+    echo "================================================================="
     if [ $CURL_EXIT_CODE -eq 0 ]; then
-        echo "✅ PROSES UNGGAH SELESAI: SUKSES"
-        echo "Respons dari server disimpan di '$output_file'."
+        echo "$MSG_UPLOAD_COMPLETE_SUCCESS"
+        printf "$MSG_SERVER_RESPONSE_SAVED\n" "$output_file"
     else
-        echo "❌ PROSES UNGGAH SELESAI: GAGAL"
-        echo "Terjadi kesalahan permanen. Periksa log di atas untuk detail."
+        echo "$MSG_UPLOAD_COMPLETE_FAILED"
+        echo "$MSG_PERMANENT_ERROR_CHECK_LOG"
     fi
-    echo "================================================================"
+    echo "================================================================="
 
     # Hapus file PID setelah selesai
     rm -f "$PID_FILE"
@@ -133,8 +165,8 @@ run_upload() {
 
 # 1. Cek apakah proses lain sedang berjalan
 if [ -f "$PID_FILE" ]; then
-    echo "❌ Error: Proses unggah lain sudah berjalan."
-    echo "Silakan pantau atau hentikan proses tersebut dari menu utama."
+    echo "$MSG_ERROR_ANOTHER_UPLOAD_RUNNING"
+    echo "$MSG_MONITOR_OR_STOP_FROM_MENU"
     exit 1
 fi
 
@@ -144,43 +176,43 @@ touch "$PID_FILE" # Buat file PID kosong sementara untuk mencegah race condition
 
 # 3. Kumpulkan informasi dari pengguna (sama seperti skrip asli)
 clear
-echo "--- Memulai Proses Upload Baru ---"
-echo "Silakan masukkan detail unggahan. Proses akan berjalan di latar belakang."
+echo "$MSG_START_NEW_UPLOAD_PROMPT_TITLE"
+echo "$MSG_ENTER_UPLOAD_DETAILS_BACKGROUND"
 echo
 echo "================================================================================"
-echo " PENTING: Informasi rahasia seperti API Key tidak akan disimpan di disk."
-echo "          Ini demi keamanan dan kenyamanan Anda. Setiap sesi memerlukan input."
+echo " $MSG_IMPORTANT_SECURITY_NOTE_1"
+echo " $MSG_IMPORTANT_SECURITY_NOTE_2"
 echo "================================================================================"
 echo
 
-read -p "Masukkan API Key Anda: " API_KEY
-[ -z "$API_KEY" ] && { echo "API Key tidak boleh kosong." >&2; rm "$PID_FILE"; exit 1; }
+read -p "$MSG_PROMPT_API_KEY" API_KEY
+[ -z "$API_KEY" ] && { echo "$MSG_API_KEY_EMPTY" >&2; rm "$PID_FILE"; exit 1; }
 
-read -p "Masukkan Persistent ID dataset: " PERSISTENT_ID
-[ -z "$PERSISTENT_ID" ] && { echo "Persistent ID tidak boleh kosong." >&2; rm "$PID_FILE"; exit 1; }
+read -p "$MSG_PROMPT_PERSISTENT_ID" PERSISTENT_ID
+[ -z "$PERSISTENT_ID" ] && { echo "$MSG_PERSISTENT_ID_EMPTY" >&2; rm "$PID_FILE"; exit 1; }
 
-read -p "Masukkan path lengkap ke file: " FILE_PATH
+read -p "$MSG_PROMPT_FILE_PATH" FILE_PATH
 while [ ! -f "$FILE_PATH" ]; do
-    echo "File tidak ditemukan di '$FILE_PATH'." >&2
-    read -p "Masukkan path lengkap ke file: " FILE_PATH
+    printf "$MSG_FILE_NOT_FOUND\n" "$FILE_PATH" >&2
+    read -p "$MSG_PROMPT_FILE_PATH" FILE_PATH
 done
 
 MAX_SIZE_BYTES=75161927680 # 70 GB
 FILE_SIZE_BYTES=$(stat -c%s "$FILE_PATH")
 if [ "$FILE_SIZE_BYTES" -gt "$MAX_SIZE_BYTES" ]; then
     FILE_SIZE_GB=$(awk -v size="$FILE_SIZE_BYTES" 'BEGIN { printf "%.2f", size / (1024*1024*1024) }')
-    echo "KESALAHAN: Ukuran file (${FILE_SIZE_GB} GB) melebihi batas (70 GB)." >&2
+    printf "$MSG_ERROR_FILE_SIZE_EXCEEDS\n" "${FILE_SIZE_GB}" >&2
     rm "$PID_FILE"; exit 1;
-fi
+fis
 
-read -p "Deskripsi file [Upload file besar]: " DESCRIPTION
-DESCRIPTION=${DESCRIPTION:-"Upload file besar"}
+read -p "${MSG_PROMPT_DESCRIPTION}[${MSG_DEFAULT_DESCRIPTION}]: " DESCRIPTION
+DESCRIPTION=${DESCRIPTION:-"$MSG_DEFAULT_DESCRIPTION"}
 
-read -p "Label direktori [data/subdir1]: " DIRECTORY_LABEL
-DIRECTORY_LABEL=${DIRECTORY_LABEL:-"data/subdir1"}
+read -p "${MSG_PROMPT_DIRECTORY_LABEL}[${MSG_DEFAULT_DIRECTORY_LABEL}]: " DIRECTORY_LABEL
+DIRECTORY_LABEL=${DIRECTORY_LABEL:-"$MSG_DEFAULT_DIRECTORY_LABEL"}
 
-read -p "Kategori (pisahkan koma) [Data]: " CATEGORIES_INPUT
-CATEGORIES_INPUT=${CATEGORIES_INPUT:-"Data"}
+read -p "${MSG_PROMPT_CATEGORIES}[${MSG_DEFAULT_CATEGORIES}]: " CATEGORIES_INPUT
+CATEGORIES_INPUT=${CATEGORIES_INPUT:-"$MSG_DEFAULT_CATEGORIES"}
 
 JSON_CATEGORIES=""
 OLD_IFS=$IFS; IFS=','
@@ -192,19 +224,19 @@ for category in $CATEGORIES_INPUT; do
 done
 IFS=$OLD_IFS; set +f
 
-read -p "Batasi file (restrict)? (y/n) [n]: " RESTRICT_CHOICE
+read -p "${MSG_PROMPT_RESTRICT}" RESTRICT_CHOICE
 IS_RESTRICTED="false"
 if [[ "$RESTRICT_CHOICE" == "y" || "$RESTRICT_CHOICE" == "Y" ]]; then
     IS_RESTRICTED="true"
 fi
 
-read -p "Nama file output [result.json]: " OUTPUT_FILE
-OUTPUT_FILE=${OUTPUT_FILE:-"result.json"}
+read -p "${MSG_PROMPT_OUTPUT_FILE}[${MSG_DEFAULT_OUTPUT_FILE}]: " OUTPUT_FILE
+OUTPUT_FILE=${OUTPUT_FILE:-"$MSG_DEFAULT_OUTPUT_FILE"}
 
 # 4. Jalankan fungsi upload di background
 echo
-echo "Informasi diterima. Memulai proses unggah di latar belakang..."
-echo "Anda dapat memantaunya dari menu utama."
+echo "$MSG_INFO_RECEIVED_STARTING_BACKGROUND"
+echo "$MSG_MONITOR_FROM_MAIN_MENU"
 
 # Menjalankan fungsi dalam sub-shell di background
 # Semua output (stdout & stderr) dari sub-shell ini akan masuk ke LOG_FILE
@@ -226,4 +258,4 @@ BG_PID=$!
 echo $BG_PID > "$PID_FILE"
 
 sleep 1
-echo "Proses dimulai dengan PID: $BG_PID."
+printf "$MSG_PROCESS_STARTED_PID\n" "$BG_PID"

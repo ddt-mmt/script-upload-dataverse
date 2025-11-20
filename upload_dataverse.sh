@@ -10,7 +10,7 @@ LANG_DIR="lang"
 # Pastikan direktori skrip ada
 SCRIPT_DIR="scripts"
 if [ ! -d "$SCRIPT_DIR" ]; then
-    echo "Direktori 'scripts' tidak ditemukan. Pastikan semua file skrip ada di sana."
+    echo "Error: Direktori 'scripts' tidak ditemukan. Pastikan semua file skrip ada di sana." >&2
     exit 1
 fi
 
@@ -42,6 +42,7 @@ choose_language() {
     echo "      Dataverse Upload & Monitoring Tool         "
     echo "-------------------------------------------------"
     echo
+    # These messages must be hardcoded or loaded from a default before selection
     echo "Pilih Bahasa / Choose Language:"
     echo "1. Bahasa Indonesia"
     echo "2. English"
@@ -49,21 +50,23 @@ choose_language() {
     read -p "Masukkan pilihan Anda [1-2]: " lang_choice
 
     case $lang_choice in
-        1) LANG_CODE="id" ;; 
-        2) LANG_CODE="en" ;; 
-        *) 
+        1) LANG_CODE="id" ;;
+        2) LANG_CODE="en" ;;
+        *)
             echo "Pilihan tidak valid."
             sleep 1
             choose_language # Ulangi pemilihan bahasa
             return
-            ;; 
+            ;;
     esac
     save_language_preference "$LANG_CODE"
     echo "Menyimpan preferensi bahasa..."
     sleep 1
+    # Muat ulang pesan setelah bahasa dipilih
+    load_language_messages "$LANG_CODE"
 }
 
-# Muat preferensi bahasa atau minta pengguna memilih
+# --- Muat preferensi bahasa atau minta pengguna memilih ---
 if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
     if [ -z "$LANG_CODE" ]; then
@@ -96,6 +99,7 @@ show_main_menu() {
             echo "$MSG_MENU_MONITOR_UPLOAD"
             echo "$MSG_MENU_STOP_UPLOAD"
             echo "$MSG_MENU_VIEW_FULL_LOG"
+            echo "$MSG_MENU_CHANGE_LANGUAGE" # New line
             echo "$MSG_MENU_EXIT"
         else
             echo "$MSG_STATUS_STALE_PID"
@@ -105,6 +109,7 @@ show_main_menu() {
             echo "$MSG_MENU_START_NEW_UPLOAD_STALE"
             echo "$MSG_MENU_VIEW_LAST_LOG_STALE"
             echo "$MSG_MENU_CLEAN_STALE_STATUS"
+            echo "$MSG_MENU_CHANGE_LANGUAGE_STALE" # New line
             echo "$MSG_MENU_EXIT_STALE"
         fi
     else
@@ -113,6 +118,7 @@ show_main_menu() {
         echo "$MSG_CHOOSE_OPTION"
         echo "$MSG_MENU_START_NEW_UPLOAD"
         echo "$MSG_MENU_VIEW_LAST_LOG"
+        echo "$MSG_MENU_CHANGE_LANGUAGE_NO_PROCESS" # New line
         echo "$MSG_MENU_EXIT_NO_PROCESS"
     fi
     echo "-------------------------------------------------"
@@ -126,9 +132,10 @@ while true; do
         # Menu saat proses berjalan
         read -p "$MSG_PROMPT_ENTER_CHOICE_RUNNING" choice
         case $choice in
-            1) bash "$SCRIPT_DIR/monitor_upload.sh" ;; 
-            2) bash "$SCRIPT_DIR/stop_upload.sh" ;; 
-            3) less "$LOG_FILE" ;; 
+            1) bash "$SCRIPT_DIR/monitor_upload.sh" ;;
+            2) bash "$SCRIPT_DIR/stop_upload.sh" ;;
+            3) less "$LOG_FILE" ;;
+            5) choose_language ;; # New option for change language
             4) echo "$MSG_EXITING_APP"; exit 0 ;; 
             *) echo "$MSG_INVALID_CHOICE" ;; 
         esac
@@ -143,6 +150,7 @@ while true; do
                 echo "$MSG_STALE_STATUS_CLEANED"
                 sleep 1
                 ;; 
+            L|l) choose_language ;; # New option for change language
             q|Q) echo "$MSG_EXITING_APP"; exit 0 ;; 
             *) echo "$MSG_INVALID_CHOICE" ;; 
         esac
@@ -159,6 +167,7 @@ while true; do
                     sleep 1
                 fi
                 ;; 
+            4) choose_language ;; # New option for change language
             3) echo "$MSG_EXITING_APP"; exit 0 ;; 
             *) echo "$MSG_INVALID_CHOICE" ;; 
         esac
