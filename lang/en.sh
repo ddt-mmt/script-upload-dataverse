@@ -112,3 +112,6 @@ MSG_MENU_CHANGE_LANGUAGE_NO_PROCESS="4. Change Language" # For no process menu
 MSG_PROMPT_ENTER_CHOICE_RUNNING="Enter your choice [1-5]: " # Updated from [1-4]
 MSG_PROMPT_ENTER_CHOICE_STALE="Enter your choice [s, l, c, L, q]: " # Updated from [s, l, c, q]
 MSG_PROMPT_ENTER_CHOICE_NO_PROCESS="Enter your choice [1-4]: " # Updated from [1-3]
+
+# New message for progress bar note
+MSG_PROGRESS_BAR_NOTE="Note: The progress bar display might appear raw/messy in the log."

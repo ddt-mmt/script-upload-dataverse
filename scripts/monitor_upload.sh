@@ -54,6 +54,7 @@ fi
 
 printf "$MSG_PROCESS_RUNNING\n" "$PID"
 echo "$MSG_MONITORING_LOG_REALTIME"
+echo "$MSG_PROGRESS_BAR_NOTE"
 echo "----------------------------------------------------------------------"
 echo ""
 

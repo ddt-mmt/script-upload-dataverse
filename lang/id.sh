@@ -113,3 +113,6 @@ MSG_MENU_CHANGE_LANGUAGE_NO_PROCESS="4. Ganti Bahasa" # For no process menu
 MSG_PROMPT_ENTER_CHOICE_RUNNING="Masukkan pilihan Anda [1-5]: " # Updated from [1-4]
 MSG_PROMPT_ENTER_CHOICE_STALE="Masukkan pilihan Anda [s, l, c, L, q]: " # Updated from [s, l, c, q]
 MSG_PROMPT_ENTER_CHOICE_NO_PROCESS="Masukkan pilihan Anda [1-4]: " # Updated from [1-3]
+
+# New message for progress bar note
+MSG_PROGRESS_BAR_NOTE="Catatan: Tampilan progress bar mungkin terlihat mentah/berantakan di log."
