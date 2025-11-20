@@ -1,3 +1,6 @@
 # Dataverse upload output
 result.json
 direct_upload_url_response.json
+
+# Direktori untuk file status dan log runtime
+run/
