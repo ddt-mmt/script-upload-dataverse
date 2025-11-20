@@ -4,18 +4,23 @@
 # =================================================================
 # Menghapus semua dependensi pada 'sed' untuk kompatibilitas maksimum.
 
-set -e
+
 
 show_banner() {
     CYAN='\033[0;36m'
     NC='\033[0m' # No Color
 
     echo -e "${CYAN}"
-    echo -e '    ____        __    __                     __                __'
-    echo -e '   / __ \____ _/ /_  / /__      ______ _____/ /___  __  _______/ /__'
-    echo -e '  / / / / __ `/ __ \/ __/ | /| / / __ `/ __  / __ \/ / / / ___/ //_/'
-    echo -e ' / /_/ / /_/ / / / / /_ | |/ |/ / /_/ / /_/ / /_/ / /_/ / /__/ ,<   '
-    echo -e '/_____/\__,_/_/ /_/\__/ |__/|__/__,_/__,_/____/__,_/___//|_|  '
+    echo "========================================================================"
+    echo "                             _   _   _                                  "
+    echo "                            | | | | | |                                 "
+    echo "   __ _ _ __   ___  _ __    | | | | | | ___   _ __   __ _  _ __  _ __    "
+    echo "  / _` | '_ \ / _ \| '_ \   | | | | | |/ _ \ | '_ \ / _` || '__|| '_ \   "
+    echo " | (_| | |_) |  __/| | | |  | |_| | | | (_) || | | | (_| || |   | | | |  "
+    echo "  \__,_| .__/ \___||_| |_|   \___/  |_|\___/ |_| |_|\__,_||_|   |_| |_|  "
+    echo "       | |                                                              "
+    echo "       |_|                                                              "
+    echo "========================================================================"
     echo -e "${NC}"
 }
 
@@ -25,7 +30,7 @@ show_banner
 
 echo "Selamat datang! Silakan masukkan detail unggahan file Anda."
 echo "Beberapa isian memiliki nilai default jika Anda membiarkannya kosong."
-echo
+echo 
 
 # API Key
 read -p "Masukkan API Key Anda: " API_KEY
@@ -146,7 +151,7 @@ echo "  -F \"file=@$FILE_PATH\" \\"
 echo "  -F 'jsonData=... (konten disiapkan)' \\"
 echo "  \"$API_URL\""
 echo "================================================================"
-echo
+echo 
 
 read -p "Apakah Anda ingin melanjutkan? (y/n): " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
@@ -154,39 +159,63 @@ if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
     exit 0
 fi
 
-
 # --- 4. Eksekusi Perintah ---
 
-echo
-echo "Memulai proses unggah..."
+# Konfigurasi Coba Ulang
+MAX_RETRIES=5
+RETRY_DELAY_SECONDS=30
 
-# Buat file sementara untuk JSON payload untuk menghindari masalah kutip
+echo
+echo "Memulai proses unggah dengan maksimal $MAX_RETRIES percobaan jika gagal..."
+
+# Buat file sementara untuk JSON payload
 JSON_PAYLOAD_FILE=$(mktemp)
 echo "$JSON_CONTENT" > "$JSON_PAYLOAD_FILE"
 
-# Lakukan curl dengan payload dari file
-curl --progress-bar --tlsv1.2 \
-  -o "$OUTPUT_FILE" \
-  -H "X-Dataverse-key: $API_KEY" \
-  -X POST \
-  -F "file=@$FILE_PATH" \
-  -F "jsonData=@$JSON_PAYLOAD_FILE" \
-  "$API_URL"
+CURL_EXIT_CODE=1 # Inisialisasi dengan kode kegagalan
 
-# Simpan exit code sebelum perintah lain dijalankan
-CURL_EXIT_CODE=$?
+for (( i=1; i<=MAX_RETRIES; i++ )); do
+    echo
+    echo "Mencoba unggah (Percobaan $i dari $MAX_RETRIES)..."
+    
+    # Lakukan curl dengan payload dari file
+    curl --progress-bar --tlsv1.2 \
+      -o "$OUTPUT_FILE" \
+      -H "X-Dataverse-key: $API_KEY" \
+      -X POST \
+      -F "file=@$FILE_PATH" \
+      -F "jsonData=@$JSON_PAYLOAD_FILE" \
+      "$API_URL"
+
+    CURL_EXIT_CODE=$?
+
+    if [ $CURL_EXIT_CODE -eq 0 ]; then
+        echo
+        echo "✅ Unggahan berhasil pada percobaan ke-$i."
+        break # Keluar dari loop jika berhasil
+    else
+        echo
+        echo "❌ Percobaan ke-$i gagal dengan kode keluar: $CURL_EXIT_CODE."
+        if [ $i -lt $MAX_RETRIES ]; then
+            echo "Menunggu $RETRY_DELAY_SECONDS detik sebelum mencoba lagi..."
+            sleep $RETRY_DELAY_SECONDS
+        else
+            echo "Batas maksimum percobaan ($MAX_RETRIES) telah tercapai."
+        fi
+    fi
+done
 
 # Hapus file sementara
 rm "$JSON_PAYLOAD_FILE"
 
-# Cek hasil eksekusi
+# Cek hasil eksekusi final
 if [ $CURL_EXIT_CODE -eq 0 ]; then
     echo
     echo "✅ Proses unggah selesai. Respons dari server disimpan di '$OUTPUT_FILE'."
     echo "Silakan periksa file tersebut untuk detailnya."
 else
     echo
-    echo "❌ Terjadi kesalahan selama proses unggah. Periksa output di atas." >&2
+    echo "❌ Terjadi kesalahan permanen setelah beberapa kali percobaan. Periksa output di atas." >&2
 fi
 
-exit 0
+exit $CURL_EXIT_CODE
