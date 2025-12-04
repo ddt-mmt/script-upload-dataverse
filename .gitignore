@@ -1,6 +1,7 @@
-# Dataverse upload output
-result.json
-direct_upload_url_response.json
+# File output JSON dan log yang dihasilkan saat runtime
+*.json
+result_dummy_1GB_*.json
 
-# Direktori untuk file status dan log runtime
-run/
+# Direktori runtime dan log
+/lang/
+/run/
