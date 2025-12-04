@@ -36,28 +36,71 @@ if [ -z "$PERSISTENT_ID" ]; then
     exit 1
 fi
 
-# File Path
-read -p "Masukkan path lengkap ke file yang akan diunggah (cth: /path/to/bigfile.iso): " FILE_PATH
-while [ ! -f "$FILE_PATH" ]; do
-    echo "File tidak ditemukan di '$FILE_PATH'. Silakan coba lagi." >&2
-    read -p "Masukkan path lengkap ke file: " FILE_PATH
-done
+# Tipe Unggahan (File atau Folder)
+read -p "Pilih tipe unggahan: 1 untuk File, 2 untuk Folder (default: 1): " UPLOAD_TYPE
+UPLOAD_TYPE=${UPLOAD_TYPE:-"1"}
 
 # --- Pengecekan Ukuran File ---
 MAX_SIZE_BYTES=75161927680 # 70 GB dalam byte
-FILE_SIZE_BYTES=$(stat -c%s "$FILE_PATH")
 
-if [ "$FILE_SIZE_BYTES" -gt "$MAX_SIZE_BYTES" ]; then
-    # Konversi byte ke GB untuk pesan error yang lebih mudah dibaca
-    FILE_SIZE_GB=$(awk -v size="$FILE_SIZE_BYTES" 'BEGIN { printf "%.2f", size / (1024*1024*1024) }')
+# Inisialisasi array untuk menyimpan path file yang akan diunggah
+declare -a FILE_PATHS
+
+if [ "$UPLOAD_TYPE" = "1" ]; then
+    # --- Unggahan File Tunggal ---
+    read -p "Masukkan path lengkap ke file yang akan diunggah (cth: /path/to/bigfile.iso): " FILE_PATH
+    while [ ! -f "$FILE_PATH" ]; do
+        echo "File tidak ditemukan di '$FILE_PATH'. Silakan coba lagi." >&2
+        read -p "Masukkan path lengkap ke file: " FILE_PATH
+    done
+    FILE_PATHS+=("$FILE_PATH")
     
-    echo
-    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-    echo " KESALAHAN: Ukuran file Anda (${FILE_SIZE_GB} GB) melebihi batas maksimum (70 GB)." >&2
-    echo " Unggahan dibatalkan." >&2
-    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-    echo
-    exit 1
+    FILE_SIZE_BYTES=$(stat -c%s "$FILE_PATH")
+    if [ "$FILE_SIZE_BYTES" -gt "$MAX_SIZE_BYTES" ]; then
+        FILE_SIZE_GB=$(awk -v size="$FILE_SIZE_BYTES" 'BEGIN { printf "%.2f", size / (1024*1024*1024) }')
+        echo
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo " KESALAHAN: Ukuran file Anda (${FILE_SIZE_GB} GB) melebihi batas maksimum (70 GB)." >&2
+        echo " Unggahan dibatalkan." >&2
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo
+        exit 1
+    fi
+else
+    # --- Unggahan Folder ---
+    read -p "Masukkan path lengkap ke folder yang akan diunggah: " FOLDER_PATH
+    while [ ! -d "$FOLDER_PATH" ]; do
+        echo "Folder tidak ditemukan di '$FOLDER_PATH'. Silakan coba lagi." >&2
+        read -p "Masukkan path lengkap ke folder: " FOLDER_PATH
+    done
+
+    # Temukan semua file dalam folder dan subfolder
+    while IFS= read -r -d $'\0' file; do
+        FILE_PATHS+=("$file")
+    done < <(find "$FOLDER_PATH" -type f -print0)
+
+    if [ ${#FILE_PATHS[@]} -eq 0 ]; then
+        echo "Tidak ada file yang ditemukan di dalam folder '$FOLDER_PATH'."
+        exit 0
+    fi
+
+    # Cek ukuran total folder
+    TOTAL_SIZE_BYTES=0
+    for file in "${FILE_PATHS[@]}"; do
+        FILE_SIZE_BYTES=$(stat -c%s "$file")
+        TOTAL_SIZE_BYTES=$((TOTAL_SIZE_BYTES + FILE_SIZE_BYTES))
+    done
+
+    if [ "$TOTAL_SIZE_BYTES" -gt "$MAX_SIZE_BYTES" ]; then
+        TOTAL_SIZE_GB=$(awk -v size="$TOTAL_SIZE_BYTES" 'BEGIN { printf "%.2f", size / (1024*1024*1024) }')
+        echo
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo " KESALAHAN: Ukuran total folder Anda (${TOTAL_SIZE_GB} GB) melebihi batas maksimum (70 GB)." >&2
+        echo " Unggahan dibatalkan." >&2
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo
+        exit 1
+    fi
 fi
 # --- Akhir Pengecekan Ukuran File ---
 
@@ -65,9 +108,13 @@ fi
 read -p "Masukkan deskripsi singkat untuk file ini (default: Upload file besar): " DESCRIPTION
 DESCRIPTION=${DESCRIPTION:-"Upload file besar"}
 
-# Direktori Tujuan
-read -p "Masukkan label direktori di dalam dataset (default: data/subdir1): " DIRECTORY_LABEL
-DIRECTORY_LABEL=${DIRECTORY_LABEL:-"data/subdir1"}
+# Direktori Tujuan (hanya untuk unggahan file tunggal)
+DIRECTORY_LABEL="data/subdir1"
+if [ "$UPLOAD_TYPE" = "1" ]; then
+    read -p "Masukkan label direktori di dalam dataset (default: data/subdir1): " DIR_INPUT
+    DIRECTORY_LABEL=${DIR_INPUT:-"data/subdir1"}
+fi
+
 
 # Kategori
 read -p "Masukkan kategori (pisahkan dengan koma jika lebih dari satu) (default: Data): " CATEGORIES_INPUT
@@ -107,41 +154,89 @@ read -p "Nama file untuk menyimpan hasil (output) (default: result.json): " OUTP
 OUTPUT_FILE=${OUTPUT_FILE:-"result.json"}
 
 
-# --- 2. Buat JSON Payload dan URL ---
+# --- 2. Buat URL ---
 
-JSON_CONTENT=$(printf '{"description":"%s","directoryLabel":"%s","categories":[%s],"restrict":%s,"tabIngest":false}' \
-    "$DESCRIPTION" \
-    "$DIRECTORY_LABEL" \
-    "$JSON_CATEGORIES" \
-    "$IS_RESTRICTED")
-
-JSON_FORM_DATA="jsonData=$JSON_CONTENT"
 API_URL="https://cibinong-data.brin.go.id/api/datasets/:persistentId/add?persistentId=$PERSISTENT_ID"
 
 
-# --- 3. Tampilkan Ringkasan dan Minta Konfirmasi ---
+# --- 4. Fungsi untuk Mengunggah File ---
+upload_file() {
+    local file_path="$1"
+    local dir_label="$2"
+    local output_file="$3"
+    
+    # Buat JSON payload dinamis untuk setiap file
+    local json_content=$(printf '{"description":"%s","directoryLabel":"%s","categories":[%s],"restrict":%s,"tabIngest":false}' \
+        "$DESCRIPTION" \
+        "$dir_label" \
+        "$JSON_CATEGORIES" \
+        "$IS_RESTRICTED")
+    
+    local json_payload_file=$(mktemp)
+    echo "$json_content" > "$json_payload_file"
 
+    echo
+    echo "================================================================"
+    echo "Mengunggah file: $file_path"
+    echo "Target direktori  : $dir_label"
+    echo "================================================================"
+
+    local max_retries=5
+    local retry_delay=30
+    local curl_exit_code=1
+
+    for (( i=1; i<=max_retries; i++ )); do
+        echo "Mencoba unggah (Percobaan $i dari $max_retries)..."
+        
+        curl --progress-bar --tlsv1.2 \
+          -o "$output_file" \
+          -H "X-Dataverse-key: $API_KEY" \
+          -X POST \
+          -F "file=@$file_path" \
+          -F "jsonData=@$json_payload_file" \
+          "$API_URL"
+        
+        curl_exit_code=$?
+
+        if [ $curl_exit_code -eq 0 ]; then
+            echo "✅ Unggahan file '$file_path' berhasil."
+            break
+        else
+            echo "❌ Percobaan unggah '$file_path' gagal (kode: $curl_exit_code)."
+            if [ $i -lt $max_retries ]; then
+                echo "Menunggu $retry_delay detik sebelum mencoba lagi..."
+                sleep $retry_delay
+            else
+                echo "Batas percobaan untuk '$file_path' tercapai."
+            fi
+        fi
+    done
+
+    rm "$json_payload_file"
+    return $curl_exit_code
+}
+
+
+# --- 5. Eksekusi Proses Unggah ---
+
+# Konfirmasi sebelum memulai
 echo
 echo "================================================================"
-echo "RINGKASAN PERINTAH"
+echo "RINGKASAN PROSES"
 echo "================================================================"
-echo "URL Target       : $API_URL"
-echo "File untuk diunggah: $FILE_PATH"
-echo "Output disimpan di : $OUTPUT_FILE"
+if [ "$UPLOAD_TYPE" = "1" ]; then
+    echo "Akan mengunggah 1 file."
+    echo "File: ${FILE_PATHS[0]}"
+else
+    echo "Akan mengunggah ${#FILE_PATHS[@]} file dari folder '$FOLDER_PATH'."
+fi
 echo "API Key          : ${API_KEY:0:4}****************"
-echo "Data Form        : jsonData=$JSON_CONTENT"
-echo "----------------------------------------------------------------"
-echo "Perintah curl yang akan dieksekusi:"
-echo
-echo "curl --progress-bar \\"
-echo "  -o \"$OUTPUT_FILE\" \\"
-echo "  -H \"X-Dataverse-key: $API_KEY\" \\"
-echo "  -X POST \\"
-echo "  -F \"file=@$FILE_PATH\" \\"
-echo "  -F 'jsonData=... (konten disiapkan)' \\"
-echo "  \"$API_URL\""
+echo "Persistent ID    : $PERSISTENT_ID"
+echo "Deskripsi        : $DESCRIPTION"
+echo "Kategori         : $CATEGORIES_INPUT"
+echo "Restrict         : $IS_RESTRICTED"
 echo "================================================================"
-echo 
+echo
 
 read -p "Apakah Anda ingin melanjutkan? (y/n): " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
@@ -149,63 +244,35 @@ if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
     exit 0
 fi
 
-# --- 4. Eksekusi Perintah ---
-
-# Konfigurasi Coba Ulang
-MAX_RETRIES=5
-RETRY_DELAY_SECONDS=30
-
-echo
-echo "Memulai proses unggah dengan maksimal $MAX_RETRIES percobaan jika gagal..."
-
-# Buat file sementara untuk JSON payload
-JSON_PAYLOAD_FILE=$(mktemp)
-echo "$JSON_CONTENT" > "$JSON_PAYLOAD_FILE"
-
-CURL_EXIT_CODE=1 # Inisialisasi dengan kode kegagalan
-
-for (( i=1; i<=MAX_RETRIES; i++ )); do
-    echo
-    echo "Mencoba unggah (Percobaan $i dari $MAX_RETRIES)..."
-    
-    # Lakukan curl dengan payload dari file
-    curl --progress-bar --tlsv1.2 \
-      -o "$OUTPUT_FILE" \
-      -H "X-Dataverse-key: $API_KEY" \
-      -X POST \
-      -F "file=@$FILE_PATH" \
-      -F "jsonData=@$JSON_PAYLOAD_FILE" \
-      "$API_URL"
-
-    CURL_EXIT_CODE=$?
-
-    if [ $CURL_EXIT_CODE -eq 0 ]; then
-        echo
-        echo "✅ Unggahan berhasil pada percobaan ke-$i."
-        break # Keluar dari loop jika berhasil
-    else
-        echo
-        echo "❌ Percobaan ke-$i gagal dengan kode keluar: $CURL_EXIT_CODE."
-        if [ $i -lt $MAX_RETRIES ]; then
-            echo "Menunggu $RETRY_DELAY_SECONDS detik sebelum mencoba lagi..."
-            sleep $RETRY_DELAY_SECONDS
-        else
-            echo "Batas maksimum percobaan ($MAX_RETRIES) telah tercapai."
-        fi
-    fi
-done
-
-# Hapus file sementara
-rm "$JSON_PAYLOAD_FILE"
-
-# Cek hasil eksekusi final
-if [ $CURL_EXIT_CODE -eq 0 ]; then
-    echo
-    echo "✅ Proses unggah selesai. Respons dari server disimpan di '$OUTPUT_FILE'."
-    echo "Silakan periksa file tersebut untuk detailnya."
+# Proses unggah
+if [ "$UPLOAD_TYPE" = "1" ]; then
+    # Unggah file tunggal
+    upload_file "${FILE_PATHS[0]}" "$DIRECTORY_LABEL" "$OUTPUT_FILE"
+    exit $?
 else
-    echo
-    echo "❌ Terjadi kesalahan permanen setelah beberapa kali percobaan. Periksa output di atas." >&2
+    # Unggah folder
+    base_folder_name=$(basename "$FOLDER_PATH")
+    for file in "${FILE_PATHS[@]}"; do
+        # Mendapatkan path relatif dari file terhadap folder input
+        relative_path=${file#$FOLDER_PATH/}
+        # Membuat label direktori baru yang mencerminkan struktur folder
+        new_dir_label="$base_folder_name/${relative_path%/*}"
+        # Menghapus trailing slash jika ada
+        new_dir_label=${new_dir_label%/}
+
+        # Tentukan nama file output unik untuk setiap file
+        file_basename=$(basename "$file")
+        unique_output_file="result_${file_basename%.*}_$(date +%s).json"
+        
+        upload_file "$file" "$new_dir_label" "$unique_output_file"
+        
+        if [ $? -ne 0 ]; then
+            echo "❌ Gagal mengunggah file '$file'. Proses akan dihentikan." >&2
+            exit 1
+        fi
+    done
+    echo "✅ Semua file dari folder '$FOLDER_PATH' berhasil diunggah."
 fi
 
-exit $CURL_EXIT_CODE
+exit 0
+
