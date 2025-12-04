@@ -48,7 +48,6 @@ run_upload() {
     local json_categories=$6
     local is_restricted=$7
     local output_file=$8
-    local file_size_bytes=$9 # New argument
 
     local START_TIME=$(date +%s)
 
@@ -67,7 +66,6 @@ run_upload() {
     echo "================================================================="
     echo "$MSG_TIME_START$(date)"
     echo "$MSG_FILE_TO_UPLOAD$file_path"
-    echo "$MSG_FILE_SIZE$(awk -v size="$file_size_bytes" 'BEGIN { if (size >= 1073741824) { printf "%.2f GB", size / 1073741824 } else if (size >= 1048576) { printf "%.2f MB", size / 1048576 } else if (size >= 1024) { printf "%.2f KB", size / 1024 } else { printf "%d B", size } }') "
     echo "$MSG_URL_TARGET$api_url"
     echo "----------------------------------------------------------------"
     
@@ -106,21 +104,6 @@ run_upload() {
             echo "$MSG_UPLOAD_END_TIME$(awk 'BEGIN { print strftime("%Y-%m-%d %H:%M:%S", '$END_TIME') }')"
             printf "$MSG_UPLOAD_DURATION%s menit %s detik\n" "$(($DURATION / 60))" "$(($DURATION % 60))"
             
-            if [ "$DURATION" -gt 0 ] && [ "$file_size_bytes" -gt 0 ]; then
-                local AVG_SPEED_BPS=$((file_size_bytes / DURATION))
-                local AVG_SPEED_KBPS=$(awk -v speed="$AVG_SPEED_BPS" 'BEGIN { printf "%.2f", speed / 1024 }')
-                local AVG_SPEED_MBPS=$(awk -v speed="$AVG_SPEED_BPS" 'BEGIN { printf "%.2f", speed / 1048576 }')
-
-                echo -n "$MSG_AVG_SPEED"
-                if (( $(echo "$AVG_SPEED_MBPS > 1" | bc -l) )); then
-                    echo "${AVG_SPEED_MBPS} MB/s"
-                elif (( $(echo "$AVG_SPEED_KBPS > 1" | bc -l) )); then
-                    echo "${AVG_SPEED_KBPS} KB/s"
-                else
-                    echo "${AVG_SPEED_BPS} B/s"
-                fi
-                echo "$MSG_SPEED_NOTE"
-            fi
             echo "----------------------------------------------------------------"
             break
         else
@@ -144,15 +127,24 @@ run_upload() {
         echo "================================================================================"
     fi
 
+    # Setelah sukses, tidak melakukan apa-apa pada file asli (tetap ada)
+    if [ $CURL_EXIT_CODE -eq 0 ]; then
+        # The original file is explicitly not deleted as per user's request.
+        : # No operation
+    fi
+
     rm "$JSON_PAYLOAD_FILE"
 
     echo "================================================================="
     if [ $CURL_EXIT_CODE -eq 0 ]; then
         echo "$MSG_UPLOAD_COMPLETE_SUCCESS"
         printf "$MSG_SERVER_RESPONSE_SAVED\n" "$output_file"
+        rm "$output_file" # Delete the temporary result file
+        echo "$MSG_RESULT_FILE_DELETED" # New message for confirmation
     else
         echo "$MSG_UPLOAD_COMPLETE_FAILED"
         echo "$MSG_PERMANENT_ERROR_CHECK_LOG"
+        printf "$MSG_ERROR_RESULT_FILE_RETAINED\n" "$output_file" # New message for retaining error file
     fi
     echo "================================================================="
 
@@ -187,7 +179,7 @@ echo
 
 # --- Kredensial & Target ---
 echo -n "$MSG_PROMPT_API_KEY"
-read -s API_KEY # Gunakan -s untuk menyembunyikan input
+read API_KEY # Tampilkan input agar tidak salah ketik
 echo
 [ -z "$API_KEY" ] && { echo "$MSG_API_KEY_EMPTY" >&2; exit 1; }
 
@@ -201,10 +193,8 @@ echo -n "$MSG_PROMPT_UPLOAD_TYPE"
 read UPLOAD_TYPE
 UPLOAD_TYPE=${UPLOAD_TYPE:-"1"}
 
-MAX_SIZE_BYTES=75161927680 # 70 GB
 declare -a FILE_PATHS
 SOURCE_PATH=""
-TOTAL_SIZE_BYTES=0
 
 if [ "$UPLOAD_TYPE" = "1" ]; then
     # --- Unggahan File Tunggal ---
@@ -217,7 +207,6 @@ if [ "$UPLOAD_TYPE" = "1" ]; then
     done
     FILE_PATHS+=("$FILE_PATH")
     SOURCE_PATH="$FILE_PATH"
-    TOTAL_SIZE_BYTES=$(stat -c%s "$FILE_PATH")
 
 else
     # --- Unggahan Folder ---
@@ -239,23 +228,6 @@ else
         printf "$MSG_NO_FILES_IN_FOLDER\n" "$FOLDER_PATH"
         exit 0
     fi
-
-    # Cek ukuran total folder
-    for file in "${FILE_PATHS[@]}"; do
-        FILE_SIZE_BYTES=$(stat -c%s "$file")
-        TOTAL_SIZE_BYTES=$((TOTAL_SIZE_BYTES + FILE_SIZE_BYTES))
-    done
-fi
-
-# Pengecekan ukuran total
-if [ "$TOTAL_SIZE_BYTES" -gt "$MAX_SIZE_BYTES" ]; then
-    SIZE_GB=$(awk -v size="$TOTAL_SIZE_BYTES" 'BEGIN { printf "%.2f", size / (1024*1024*1024) }')
-    if [ "$UPLOAD_TYPE" = "1" ]; then
-        printf "$MSG_ERROR_FILE_SIZE_EXCEEDS\n" "${SIZE_GB}" >&2
-    else
-        printf "$MSG_ERROR_TOTAL_FOLDER_SIZE_EXCEEDS\n" "${SIZE_GB}" >&2
-    fi
-    exit 1;
 fi
 
 
@@ -296,7 +268,6 @@ fi
 
 
 # --- Konfirmasi Akhir ---
-TOTAL_SIZE_FORMATTED=$(awk -v size="$TOTAL_SIZE_BYTES" 'BEGIN { if (size >= 1073741824) { printf "%.2f GB", size / 1073741824 } else if (size >= 1048576) { printf "%.2f MB", size / 1048576 } else if (size >= 1024) { printf "%.2f KB", size / 1024 } else { printf "%d B", size } }')
 echo
 echo "================================================================="
 echo "$MSG_UPLOAD_SUMMARY_TITLE"
@@ -307,7 +278,6 @@ else
     echo "$MSG_UPLOAD_SUMMARY_TYPE_FOLDER"
 fi
 printf "$MSG_UPLOAD_SUMMARY_TOTAL_FILES\n" "${#FILE_PATHS[@]}"
-printf "$MSG_UPLOAD_SUMMARY_TOTAL_SIZE\n" "$TOTAL_SIZE_FORMATTED"
 printf "$MSG_UPLOAD_SUMMARY_SOURCE_PATH\n" "$SOURCE_PATH"
 printf "$MSG_UPLOAD_SUMMARY_PERSISTENT_ID\n" "$PERSISTENT_ID"
 echo "$MSG_UPLOAD_SUMMARY_API_KEY"
@@ -327,7 +297,6 @@ start_background_process() {
     if [ "$UPLOAD_TYPE" = "1" ]; then
         # --- Unggah File Tunggal ---
         local file_path="${FILE_PATHS[0]}"
-        local file_size=$(stat -c%s "$file_path")
         local output_file="result_$(basename "$file_path" | sed 's/\.[^.]*$//')_$(date +%s).json"
         
         run_upload \
@@ -338,8 +307,7 @@ start_background_process() {
             "$DIRECTORY_LABEL" \
             "$JSON_CATEGORIES" \
             "$IS_RESTRICTED" \
-            "$output_file" \
-            "$file_size"
+            "$output_file"
     else
         # --- Unggah Folder ---
         local base_folder_path="$SOURCE_PATH"
@@ -356,7 +324,6 @@ start_background_process() {
 
             local file_basename=$(basename "$file")
             local unique_output_file="result_${file_basename%.*}_$(date +%s).json"
-            local file_size=$(stat -c%s "$file")
 
             # Panggil fungsi upload untuk setiap file
             run_upload \
@@ -367,8 +334,7 @@ start_background_process() {
                 "$new_dir_label" \
                 "$JSON_CATEGORIES" \
                 "$IS_RESTRICTED" \
-                "$unique_output_file" \
-                "$file_size"
+                "$unique_output_file"
             
             # Jika sebuah file gagal, hentikan seluruh proses
             if [ $? -ne 0 ]; then

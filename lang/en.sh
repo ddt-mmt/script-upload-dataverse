@@ -136,3 +136,5 @@ MSG_PROMPT_ENTER_CHOICE_NO_PROCESS="Enter your choice [1-4]: " # Updated from [1
 
 # New message for progress bar note
 MSG_PROGRESS_BAR_NOTE="Note: The progress bar display might appear raw/messy in the log."
+MSG_RESULT_FILE_DELETED="Temporary server response file has been deleted."
+MSG_ERROR_RESULT_FILE_RETAINED="Server response file (containing potential errors) retained at '%s' for debugging."

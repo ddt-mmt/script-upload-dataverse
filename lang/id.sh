@@ -138,3 +138,5 @@ MSG_PROMPT_ENTER_CHOICE_NO_PROCESS="Masukkan pilihan Anda [1-4]: " # Updated fro
 
 # New message for progress bar note
 MSG_PROGRESS_BAR_NOTE="Catatan: Tampilan progress bar mungkin terlihat mentah/berantakan di log."
+MSG_RESULT_FILE_DELETED="File respons server sementara telah dihapus."
+MSG_ERROR_RESULT_FILE_RETAINED="File respons server (berisi potensi error) disimpan di '%s' untuk debugging."
