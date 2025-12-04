@@ -12,7 +12,7 @@ MSG_CHOOSE_OPTION="Choose an option:"
 MSG_MENU_MONITOR_UPLOAD="1. Monitor Upload Process"
 MSG_MENU_STOP_UPLOAD="2. Stop Upload Process"
 MSG_MENU_VIEW_FULL_LOG="3. View Full Log"
-MSG_MENU_EXIT="4. Exit"
+MSG_MENU_EXIT="5. Exit"
 MSG_STATUS_STALE_PID="STATUS: Stale process file (PID) found. The previous process might not have stopped correctly."
 MSG_STATUS_CHECK_LOG_BEFORE_NEW="STATUS: It is recommended to check the log before starting a new upload."
 MSG_MENU_START_NEW_UPLOAD_STALE="s. Start New Upload Process"
@@ -69,6 +69,26 @@ MSG_PROMPT_API_KEY="Enter your API Key: "
 MSG_API_KEY_EMPTY="API Key cannot be empty."
 MSG_PROMPT_PERSISTENT_ID="Enter dataset Persistent ID: "
 MSG_PERSISTENT_ID_EMPTY="Persistent ID cannot be empty."
+
+# Messages for Upload Type (File/Folder)
+MSG_PROMPT_UPLOAD_TYPE="Select upload type: 1 for File, 2 for Folder (default: 1): "
+MSG_PROMPT_FOLDER_PATH="Enter the full path to the folder: "
+MSG_FOLDER_NOT_FOUND="Folder not found at '%s'."
+MSG_NO_FILES_IN_FOLDER="No files found in the folder '%s'."
+MSG_ERROR_TOTAL_FOLDER_SIZE_EXCEEDS="ERROR: Your total folder size (%s GB) exceeds the maximum limit (70 GB)."
+MSG_UPLOAD_SUMMARY_TITLE="UPLOAD PROCESS SUMMARY"
+MSG_UPLOAD_SUMMARY_TYPE_FILE="Type: Single File Upload"
+MSG_UPLOAD_SUMMARY_TYPE_FOLDER="Type: Folder Upload"
+MSG_UPLOAD_SUMMARY_TOTAL_FILES="Total Files: %s"
+MSG_UPLOAD_SUMMARY_TOTAL_SIZE="Total Size: %s"
+MSG_UPLOAD_SUMMARY_SOURCE_PATH="Source Path: %s"
+MSG_UPLOAD_SUMMARY_PERSISTENT_ID="Persistent ID: %s"
+MSG_UPLOAD_SUMMARY_API_KEY="API Key: Hidden"
+MSG_UPLOAD_CONFIRM_PROMPT="Do you want to continue? (y/n): "
+MSG_UPLOAD_ABORTED="Operation cancelled by user."
+MSG_ALL_FILES_UPLOADED_SUCCESS="✅ All files from folder '%s' were uploaded successfully."
+MSG_FOLDER_UPLOAD_FAILED="❌ Failed to upload file '%s'. The process will be aborted."
+
 MSG_PROMPT_FILE_PATH="Enter full path to file: "
 MSG_FILE_NOT_FOUND="File not found at '%s'."
 MSG_ERROR_FILE_SIZE_EXCEEDS="ERROR: Your file size (%s GB) exceeds the maximum limit (70 GB)."
@@ -104,9 +124,10 @@ MSG_UPLOAD_STOPPED="Upload process has been stopped."
 MSG_STATUS_FILE_CLEANED="Status file has been cleaned."
 
 # New messages for language selection
-MSG_MENU_CHANGE_LANGUAGE="5. Change Language" # For running process menu
+MSG_MENU_CHANGE_LANGUAGE="4. Change Language" # For running process menu
 MSG_MENU_CHANGE_LANGUAGE_STALE="L. Change Language" # For stale PID menu
-MSG_MENU_CHANGE_LANGUAGE_NO_PROCESS="4. Change Language" # For no process menu
+MSG_MENU_CHANGE_LANGUAGE_NO_PROCESS="3. Change Language" # For no process menu
+MSG_MENU_EXIT_NO_PROCESS="4. Exit"
 
 # Updated prompts to reflect new options
 MSG_PROMPT_ENTER_CHOICE_RUNNING="Enter your choice [1-5]: " # Updated from [1-4]

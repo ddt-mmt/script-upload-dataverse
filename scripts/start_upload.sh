@@ -156,8 +156,8 @@ run_upload() {
     fi
     echo "================================================================="
 
-    # Hapus file PID setelah selesai
-    rm -f "$PID_FILE"
+    # Kembalikan exit code dari curl untuk penanganan error di loop folder
+    return $CURL_EXIT_CODE
 }
 
 
@@ -171,10 +171,10 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 # 2. Hapus log lama dan siapkan file PID
-rm -f "$LOG_FILE"
-touch "$PID_FILE" # Buat file PID kosong sementara untuk mencegah race condition
+# Lakukan ini setelah mendapat konfirmasi dari pengguna
+# rm -f "$LOG_FILE"
 
-# 3. Kumpulkan informasi dari pengguna (sama seperti skrip asli)
+# 3. Kumpulkan informasi dari pengguna
 clear
 echo "$MSG_START_NEW_UPLOAD_PROMPT_TITLE"
 echo "$MSG_ENTER_UPLOAD_DETAILS_BACKGROUND"
@@ -185,37 +185,93 @@ echo " $MSG_IMPORTANT_SECURITY_NOTE_2"
 echo "================================================================================"
 echo
 
+# --- Kredensial & Target ---
 echo -n "$MSG_PROMPT_API_KEY"
-read API_KEY
-[ -z "$API_KEY" ] && { echo "$MSG_API_KEY_EMPTY" >&2; rm "$PID_FILE"; exit 1; }
+read -s API_KEY # Gunakan -s untuk menyembunyikan input
+echo
+[ -z "$API_KEY" ] && { echo "$MSG_API_KEY_EMPTY" >&2; exit 1; }
 
 echo -n "$MSG_PROMPT_PERSISTENT_ID"
 read PERSISTENT_ID
-[ -z "$PERSISTENT_ID" ] && { echo "$MSG_PERSISTENT_ID_EMPTY" >&2; rm "$PID_FILE"; exit 1; }
+[ -z "$PERSISTENT_ID" ] && { echo "$MSG_PERSISTENT_ID_EMPTY" >&2; exit 1; }
 
-echo -n "$MSG_PROMPT_FILE_PATH"
-read FILE_PATH
-while [ ! -f "$FILE_PATH" ]; do
-    printf "$MSG_FILE_NOT_FOUND\n" "$FILE_PATH" >&2
-    echo -n "$MSG_PROMPT_FILE_PATH"
-    read FILE_PATH
-done
+
+# --- Tipe Unggahan (File atau Folder) ---
+echo -n "$MSG_PROMPT_UPLOAD_TYPE"
+read UPLOAD_TYPE
+UPLOAD_TYPE=${UPLOAD_TYPE:-"1"}
 
 MAX_SIZE_BYTES=75161927680 # 70 GB
-FILE_SIZE_BYTES=$(stat -c%s "$FILE_PATH")
-if [ "$FILE_SIZE_BYTES" -gt "$MAX_SIZE_BYTES" ]; then
-    FILE_SIZE_GB=$(awk -v size="$FILE_SIZE_BYTES" 'BEGIN { printf "%.2f", size / (1024*1024*1024) }')
-    printf "$MSG_ERROR_FILE_SIZE_EXCEEDS\n" "${FILE_SIZE_GB}" >&2
-    rm "$PID_FILE"; exit 1;
+declare -a FILE_PATHS
+SOURCE_PATH=""
+TOTAL_SIZE_BYTES=0
+
+if [ "$UPLOAD_TYPE" = "1" ]; then
+    # --- Unggahan File Tunggal ---
+    echo -n "$MSG_PROMPT_FILE_PATH"
+    read FILE_PATH
+    while [ ! -f "$FILE_PATH" ]; do
+        printf "$MSG_FILE_NOT_FOUND\n" "$FILE_PATH" >&2
+        echo -n "$MSG_PROMPT_FILE_PATH"
+        read FILE_PATH
+    done
+    FILE_PATHS+=("$FILE_PATH")
+    SOURCE_PATH="$FILE_PATH"
+    TOTAL_SIZE_BYTES=$(stat -c%s "$FILE_PATH")
+
+else
+    # --- Unggahan Folder ---
+    echo -n "$MSG_PROMPT_FOLDER_PATH"
+    read FOLDER_PATH
+    while [ ! -d "$FOLDER_PATH" ]; do
+        printf "$MSG_FOLDER_NOT_FOUND\n" "$FOLDER_PATH" >&2
+        echo -n "$MSG_PROMPT_FOLDER_PATH"
+        read FOLDER_PATH
+    done
+    SOURCE_PATH="$FOLDER_PATH"
+
+    # Temukan semua file dalam folder dan subfolder
+    while IFS= read -r -d $'\0' file; do
+        FILE_PATHS+=("$file")
+    done < <(find "$FOLDER_PATH" -type f -print0)
+
+    if [ ${#FILE_PATHS[@]} -eq 0 ]; then
+        printf "$MSG_NO_FILES_IN_FOLDER\n" "$FOLDER_PATH"
+        exit 0
     fi
 
+    # Cek ukuran total folder
+    for file in "${FILE_PATHS[@]}"; do
+        FILE_SIZE_BYTES=$(stat -c%s "$file")
+        TOTAL_SIZE_BYTES=$((TOTAL_SIZE_BYTES + FILE_SIZE_BYTES))
+    done
+fi
+
+# Pengecekan ukuran total
+if [ "$TOTAL_SIZE_BYTES" -gt "$MAX_SIZE_BYTES" ]; then
+    SIZE_GB=$(awk -v size="$TOTAL_SIZE_BYTES" 'BEGIN { printf "%.2f", size / (1024*1024*1024) }')
+    if [ "$UPLOAD_TYPE" = "1" ]; then
+        printf "$MSG_ERROR_FILE_SIZE_EXCEEDS\n" "${SIZE_GB}" >&2
+    else
+        printf "$MSG_ERROR_TOTAL_FOLDER_SIZE_EXCEEDS\n" "${SIZE_GB}" >&2
+    fi
+    exit 1;
+fi
+
+
+# --- Metadata Umum ---
 echo -n "${MSG_PROMPT_DESCRIPTION}[${MSG_DEFAULT_DESCRIPTION}]: "
 read DESCRIPTION
 DESCRIPTION=${DESCRIPTION:-"$MSG_DEFAULT_DESCRIPTION"}
 
-echo -n "${MSG_PROMPT_DIRECTORY_LABEL}[${MSG_DEFAULT_DIRECTORY_LABEL}]: "
-read DIRECTORY_LABEL
-DIRECTORY_LABEL=${DIRECTORY_LABEL:-"$MSG_DEFAULT_DIRECTORY_LABEL"}
+DIRECTORY_LABEL_PROMPT_MSG="$MSG_PROMPT_DIRECTORY_LABEL"
+DEFAULT_DIRECTORY_LABEL_MSG="$MSG_DEFAULT_DIRECTORY_LABEL"
+# Hanya minta label direktori untuk unggahan file tunggal
+if [ "$UPLOAD_TYPE" = "1" ]; then
+    echo -n "${DIRECTORY_LABEL_PROMPT_MSG}[${DEFAULT_DIRECTORY_LABEL_MSG}]: "
+    read DIRECTORY_LABEL
+    DIRECTORY_LABEL=${DIRECTORY_LABEL:-"$DEFAULT_DIRECTORY_LABEL_MSG"}
+fi
 
 echo -n "${MSG_PROMPT_CATEGORIES}[${MSG_DEFAULT_CATEGORIES}]: "
 read CATEGORIES_INPUT
@@ -238,31 +294,112 @@ if [[ "$RESTRICT_CHOICE" == "y" || "$RESTRICT_CHOICE" == "Y" ]]; then
     IS_RESTRICTED="true"
 fi
 
-echo -n "${MSG_PROMPT_OUTPUT_FILE}[${MSG_DEFAULT_OUTPUT_FILE}]: "
-read OUTPUT_FILE
-OUTPUT_FILE=${OUTPUT_FILE:-"$MSG_DEFAULT_OUTPUT_FILE"}
 
-# 4. Jalankan fungsi upload di background
+# --- Konfirmasi Akhir ---
+TOTAL_SIZE_FORMATTED=$(awk -v size="$TOTAL_SIZE_BYTES" 'BEGIN { if (size >= 1073741824) { printf "%.2f GB", size / 1073741824 } else if (size >= 1048576) { printf "%.2f MB", size / 1048576 } else if (size >= 1024) { printf "%.2f KB", size / 1024 } else { printf "%d B", size } }')
+echo
+echo "================================================================="
+echo "$MSG_UPLOAD_SUMMARY_TITLE"
+echo "================================================================="
+if [ "$UPLOAD_TYPE" = "1" ]; then
+    echo "$MSG_UPLOAD_SUMMARY_TYPE_FILE"
+else
+    echo "$MSG_UPLOAD_SUMMARY_TYPE_FOLDER"
+fi
+printf "$MSG_UPLOAD_SUMMARY_TOTAL_FILES\n" "${#FILE_PATHS[@]}"
+printf "$MSG_UPLOAD_SUMMARY_TOTAL_SIZE\n" "$TOTAL_SIZE_FORMATTED"
+printf "$MSG_UPLOAD_SUMMARY_SOURCE_PATH\n" "$SOURCE_PATH"
+printf "$MSG_UPLOAD_SUMMARY_PERSISTENT_ID\n" "$PERSISTENT_ID"
+echo "$MSG_UPLOAD_SUMMARY_API_KEY"
+echo "================================================================="
+echo
+echo -n "$MSG_UPLOAD_CONFIRM_PROMPT"
+read CONFIRM
+if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
+    echo "$MSG_UPLOAD_ABORTED"
+    exit 0
+fi
+
+
+# --- Fungsi Master Background ---
+# Fungsi ini yang akan dijalankan di background, membungkus semua logika upload
+start_background_process() {
+    if [ "$UPLOAD_TYPE" = "1" ]; then
+        # --- Unggah File Tunggal ---
+        local file_path="${FILE_PATHS[0]}"
+        local file_size=$(stat -c%s "$file_path")
+        local output_file="result_$(basename "$file_path" | sed 's/\.[^.]*$//')_$(date +%s).json"
+        
+        run_upload \
+            "$API_KEY" \
+            "$PERSISTENT_ID" \
+            "$file_path" \
+            "$DESCRIPTION" \
+            "$DIRECTORY_LABEL" \
+            "$JSON_CATEGORIES" \
+            "$IS_RESTRICTED" \
+            "$output_file" \
+            "$file_size"
+    else
+        # --- Unggah Folder ---
+        local base_folder_path="$SOURCE_PATH"
+        # Pastikan path folder diakhiri slash untuk 'sed'
+        [[ "$base_folder_path" != */ ]] && base_folder_path="$base_folder_path/"
+
+        for file in "${FILE_PATHS[@]}"; do
+            # Dapatkan path relatif dari file terhadap folder input
+            local relative_path=${file#$base_folder_path}
+            # Buat label direktori baru yang mencerminkan struktur folder
+            local new_dir_label=$(dirname "$relative_path")
+            # Jika file ada di root folder, dirname akan mengembalikan '.', ganti dengan ""
+            [ "$new_dir_label" = "." ] && new_dir_label=""
+
+            local file_basename=$(basename "$file")
+            local unique_output_file="result_${file_basename%.*}_$(date +%s).json"
+            local file_size=$(stat -c%s "$file")
+
+            # Panggil fungsi upload untuk setiap file
+            run_upload \
+                "$API_KEY" \
+                "$PERSISTENT_ID" \
+                "$file" \
+                "$DESCRIPTION" \
+                "$new_dir_label" \
+                "$JSON_CATEGORIES" \
+                "$IS_RESTRICTED" \
+                "$unique_output_file" \
+                "$file_size"
+            
+            # Jika sebuah file gagal, hentikan seluruh proses
+            if [ $? -ne 0 ]; then
+                printf "$MSG_FOLDER_UPLOAD_FAILED\n" "$file" >&2
+                # Hapus file PID untuk menandakan proses telah berhenti
+                rm -f "$PID_FILE"
+                exit 1
+            fi
+        done
+        printf "$MSG_ALL_FILES_UPLOADED_SUCCESS\n" "$SOURCE_PATH"
+    fi
+
+    # Hapus file PID setelah SEMUA pekerjaan selesai
+    rm -f "$PID_FILE"
+}
+
+
+# 4. Jalankan fungsi master di background
 echo
 echo "$MSG_INFO_RECEIVED_STARTING_BACKGROUND"
 echo "$MSG_MONITOR_FROM_MAIN_MENU"
 
-# Menjalankan fungsi dalam sub-shell di background
-# Semua output (stdout & stderr) dari sub-shell ini akan masuk ke LOG_FILE
+# Hapus log lama SEBELUM memulai proses baru
+rm -f "$LOG_FILE"
+touch "$PID_FILE" # Buat file PID kosong untuk mencegah race condition
+
 (
-    run_upload \
-        "$API_KEY" \
-        "$PERSISTENT_ID" \
-        "$FILE_PATH" \
-        "$DESCRIPTION" \
-        "$DIRECTORY_LABEL" \
-        "$JSON_CATEGORIES" \
-        "$IS_RESTRICTED" \
-        "$OUTPUT_FILE" \
-        "$FILE_SIZE_BYTES"
+    start_background_process
 ) > "$LOG_FILE" 2>&1 &
 
-# 5. Simpan PID dari proses background yang baru saja dijalankan
+# 5. Simpan PID dari proses background
 BG_PID=$!
 echo $BG_PID > "$PID_FILE"
 
