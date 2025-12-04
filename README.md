@@ -8,50 +8,52 @@
 -------------------------------------------------
 ```
 
-Aplikasi berbasis CLI ini dirancang untuk memfasilitasi proses unggah file ke Dataverse dengan fitur pemantauan dan eksekusi di latar belakang. NETLOAD membantu Anda mengelola unggahan file besar dengan lebih efisien, memberikan informasi status, durasi, dan kecepatan unggah.
+This CLI-based application is designed to facilitate the process of uploading files to Dataverse with monitoring and background execution features. NETLOAD helps you manage large file uploads more efficiently, providing status, duration, and upload speed information.
 
-## Fitur Utama
+## Key Features
 
-*   **Dukungan Multi-Bahasa**: Pilih antara Bahasa Indonesia dan English saat memulai aplikasi, atau ubah kapan saja dari menu utama.
-*   **Unggah di Latar Belakang**: Jalankan proses unggah tanpa mengunci terminal Anda.
-*   **Pemantauan Real-time**: Pantau log unggahan secara langsung untuk melihat progres.
-*   **Informasi Detail Unggah**: Dapatkan durasi, waktu mulai/selesai (dengan format yang jelas), dan kecepatan rata-rata unggah setelah proses selesai.
-*   **Feedback Proses Unggah**: Pesan informatif muncul setelah 100% transfer file untuk memberitahu bahwa proses masih menunggu respons server, mencegah kekhawatiran proses macet.
-*   **Penanganan Proses**: Opsi untuk menghentikan proses unggah yang sedang berjalan.
-*   **Keamanan**: Informasi sensitif seperti API Key tidak disimpan di disk.
+*   **Multi-Language Support**: Choose between Indonesian and English when starting the application, or change it anytime from the main menu.
+*   **Background Uploads**: Run upload processes without locking your terminal.
+*   **Real-time Monitoring**: Monitor upload logs directly to see progress.
+*   **Detailed Upload Information**: Get duration, start/end times (with clear formatting), and average upload speed after the process is complete.
+*   **Upload Process Feedback**: Informative messages appear after 100% file transfer to indicate that the process is still awaiting server response, preventing concerns about a stuck process.
+*   **Process Handling**: Option to stop a running upload process.
+*   **API Key Security**: When entering the API Key, characters will be visible on screen to help you prevent typos. The API Key will not be stored on disk and is hidden in summaries.
+*   **Original Files Retained**: The original data files you upload (e.g., PDFs, images, etc.) will remain in their original location after the upload process is complete.
+*   **Temporary JSON Files Deleted Automatically**: JSON files generated as request payloads and JSON response files from the Dataverse server will be automatically deleted after a successful upload (response files will be retained in case of failure for debugging).
 
-## Instalasi
+## Installation
 
-1.  **Clone Repositori**:
+1.  **Clone the Repository**:
     ```bash
     git clone https://github.com/your-username/your-repo-name.git
     cd your-repo-name
     ```
-    *(Ganti `your-username/your-repo-name.git` dengan detail repositori Anda)*
+    *(Replace `your-username/your-repo-name.git` with your repository details)*
 
-2.  **Berikan Izin Eksekusi**:
-    Pastikan skrip memiliki izin untuk dieksekusi:
+2.  **Grant Execute Permissions**:
+    Ensure the scripts have execute permissions:
     ```bash
     chmod +x upload_dataverse.sh scripts/*.sh
     ```
 
-## Cara Menggunakan
+## How to Use
 
-Jalankan skrip utama dari terminal:
+Run the main script from your terminal:
 
 ```bash
 ./upload_dataverse.sh
 ```
 
-### Pemilihan Bahasa
+### Language Selection
 
-Saat pertama kali menjalankan aplikasi, Anda akan diminta untuk memilih bahasa (Bahasa Indonesia atau English). Pilihan Anda akan disimpan untuk penggunaan selanjutnya. Anda juga dapat mengubah bahasa kapan saja dari menu utama.
+When first running the application, you will be prompted to choose a language (Indonesian or English). Your choice will be saved for future use. You can also change the language at any time from the main menu.
 
-### Menu Utama
+### Main Menu
 
-Aplikasi akan menyajikan menu interaktif. Tampilan menu akan bervariasi tergantung pada apakah ada proses unggah yang sedang berjalan atau tidak.
+The application will present an interactive menu. The menu display will vary depending on whether an upload process is currently running or not.
 
-**Contoh Tampilan Menu (Tidak ada proses aktif):**
+**Example Menu Display (No active process):**
 
 ```
 #################################################
@@ -59,68 +61,68 @@ Aplikasi akan menyajikan menu interaktif. Tampilan menu akan bervariasi tergantu
 #################################################
       Dataverse Upload & Monitoring Tool
 -------------------------------------------------
-STATUS: Tidak ada proses upload yang aktif.
+STATUS: No active upload process.
 
-Pilih salah satu opsi:
-  1. Mulai Proses Upload Baru
-  2. Lihat Log Terakhir
-  3. Keluar
-  4. Ganti Bahasa
+Choose an option:
+  1. Start New Upload Process
+  2. View Last Log
+  3. Exit
+  4. Change Language
 -------------------------------------------------
 ```
 
-### Opsi Menu
+### Menu Options
 
-*   **Mulai Proses Upload Baru (1 atau 's')**:
-    *   Akan meminta Anda untuk memasukkan detail unggahan seperti API Key, Persistent ID, path file, deskripsi, dll.
-    *   Proses unggah akan dimulai di latar belakang.
-    *   **PENTING**: Informasi rahasia seperti API Key tidak akan disimpan di disk.
+*   **Start New Upload Process (1 or 's')**:
+    *   Will prompt you to enter upload details such as API Key, Persistent ID, file path, description, etc.
+    *   The upload process will start in the background.
+    *   **IMPORTANT**: When entering the API Key, characters will be visible on screen to help you prevent typos. The API Key will not be stored on disk.
 
-*   **Pantau Proses Upload (1)**:
-    *   (Muncul jika ada proses berjalan) Menampilkan log unggahan secara *real-time*. Tekan `Ctrl+C` untuk kembali ke menu utama.
+*   **Monitor Upload Process (1)**:
+    *   (Appears if a process is running) Displays upload logs in *real-time*. Press `Ctrl+C` to return to the main menu.
 
-*   **Hentikan Proses Upload (2)**:
-    *   (Muncul jika ada proses berjalan) Mengirim sinyal untuk menghentikan proses unggah yang sedang berjalan di latar belakang.
+*   **Stop Upload Process (2)**:
+    *   (Appears if a process is running) Sends a signal to stop the running background upload process.
 
-*   **Lihat Log Terakhir (2 atau 'l')**:
-    *   Menampilkan seluruh isi file log `run/upload.log` menggunakan `less`.
+*   **View Last Log (2 or 'l')**:
+    *   Displays the entire content of the `run/upload.log` file using `less`.
 
-*   **Bersihkan Status Proses Usang ('c')**:
-    *   (Muncul jika ada file PID usang) Menghapus file status proses yang mungkin tertinggal dari proses sebelumnya yang tidak berhenti dengan benar.
+*   **Clean Stale Process Status ('c')**:
+    *   (Appears if a stale PID file is found) Deletes the process status file that might be left over from a previous process that did not stop correctly.
 
-*   **Ganti Bahasa (4 atau 'L')**:
-    *   Memungkinkan Anda untuk mengubah bahasa antarmuka aplikasi.
+*   **Change Language (4 or 'L')**:
+    *   Allows you to change the application's interface language.
 
-*   **Lihat Log Keseluruhan (3)**:
-    *   (Muncul jika ada proses berjalan) Menampilkan seluruh isi file log `run/upload.log` menggunakan `less`.
+*   **View Full Log (3)**:
+    *   (Appears if a process is running) Displays the entire content of the `run/upload.log` file using `less`.
 
-*   **Keluar (3, 4, atau 'q')**:
-    *   Keluar dari aplikasi.
+*   **Exit (3, 4, or 'q')**:
+    *   Exits the application.
 
-## Struktur Proyek
+## Project Structure
 
 ```
 .
 ├── .gitignore
 ├── README.md
-├── upload_dataverse.sh         # Skrip menu utama, penanganan bahasa, dan loop menu
+├── upload_dataverse.sh         # Main menu script, language handling, and menu loop
 ├── scripts/
-│   ├── start_upload.sh         # Logika inti untuk memulai unggahan, input pengguna, dan feedback progres
-│   ├── monitor_upload.sh       # Skrip untuk memantau log unggahan secara real-time
-│   └── stop_upload.sh          # Skrip untuk menghentikan unggahan yang sedang berjalan
-├── lang/                       # Direktori berisi file bahasa
-│   ├── id.sh                   # Pesan dalam Bahasa Indonesia
-│   └── en.sh                   # Pesan dalam Bahasa Inggris
-└── run/                        # Direktori untuk file log dan PID (diabaikan oleh Git)
-    ├── upload.log              # Log dari proses unggah
-    ├── upload.pid              # File yang berisi PID proses unggah
-    └── config.sh               # Menyimpan preferensi bahasa pengguna
+│   ├── start_upload.sh         # Core logic for starting uploads, user input, and progress feedback
+│   ├── monitor_upload.sh       # Script for real-time monitoring of upload logs
+│   └── stop_upload.sh          # Script for stopping a running upload
+├── lang/                       # Directory containing language files
+│   ├── id.sh                   # Messages in Indonesian
+│   └── en.sh                   # Messages in English
+└── run/                        # Directory for log and PID files (ignored by Git)
+    ├── upload.log              # Log of the upload process
+    ├── upload.pid              # File containing the PID of the upload process
+    └── config.sh               # Stores user language preferences
 ```
 
-## Kontribusi
+## Contributing
 
-Jika Anda ingin berkontribusi pada proyek ini, silakan fork repositori, buat branch baru, lakukan perubahan Anda, dan kirimkan pull request.
+If you wish to contribute to this project, please fork the repository, create a new branch, make your changes, and submit a pull request.
 
-## Lisensi
+## License
 
-Proyek ini dilisensikan di bawah [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
