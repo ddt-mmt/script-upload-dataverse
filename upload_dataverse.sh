@@ -47,7 +47,8 @@ choose_language() {
     echo "1. Bahasa Indonesia"
     echo "2. English"
     echo "-------------------------------------------------"
-    read -p "Masukkan pilihan Anda [1-2]: " lang_choice
+    echo "Masukkan pilihan Anda [1-2]:"
+    read -e lang_choice
 
 
     case $lang_choice in
@@ -132,7 +133,8 @@ while true; do
     
     if [ -f "$PID_FILE" ] && [ -n "$(cat "$PID_FILE")" ] && [[ "$(cat "$PID_FILE")" =~ ^[0-9]+$ ]] && ps -p "$(cat "$PID_FILE")" > /dev/null; then
         # Menu saat proses berjalan
-        read -p "$MSG_PROMPT_ENTER_CHOICE_RUNNING" choice
+        echo "$MSG_PROMPT_ENTER_CHOICE_RUNNING"
+        read -e choice
         case $choice in
             1) bash "$SCRIPT_DIR/monitor_upload.sh" ;;
             2) bash "$SCRIPT_DIR/stop_upload.sh" ;;
@@ -143,7 +145,8 @@ while true; do
         esac
     elif [ -f "$PID_FILE" ]; then
         # Menu saat ada PID file usang
-        read -p "$MSG_PROMPT_ENTER_CHOICE_STALE" choice
+        echo "$MSG_PROMPT_ENTER_CHOICE_STALE"
+        read -e choice
         case $choice in
             s|S) bash "$SCRIPT_DIR/start_upload.sh" ;; 
             l|L) less "$LOG_FILE" ;; 
@@ -158,7 +161,8 @@ while true; do
         esac
     else
         # Menu saat tidak ada proses
-        read -p "$MSG_PROMPT_ENTER_CHOICE_NO_PROCESS" choice
+        echo "$MSG_PROMPT_ENTER_CHOICE_NO_PROCESS"
+        read -e choice
         case $choice in
             1) bash "$SCRIPT_DIR/start_upload.sh" ;; 
             2) 
@@ -175,6 +179,7 @@ while true; do
         esac
     fi
     echo
-    read -p "$MSG_PROMPT_PRESS_ENTER_TO_CONTINUE"
+    echo "$MSG_PROMPT_PRESS_ENTER_TO_CONTINUE"
+    read -e
 done
 

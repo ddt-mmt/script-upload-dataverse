@@ -16,9 +16,11 @@ This CLI-based application is designed to facilitate the process of uploading fi
 *   **Background Uploads**: Run upload processes without locking your terminal.
 *   **Real-time Monitoring**: Monitor upload logs directly to see progress.
 *   **Detailed Upload Information**: Get duration, start/end times (with clear formatting), and average upload speed after the process is complete.
+*   **Comprehensive Folder Upload Summary**: After completing a folder upload, a detailed summary is provided, including the total number of files uploaded, total size, overall duration, and average upload speed.
 *   **Upload Process Feedback**: Informative messages appear after 100% file transfer to indicate that the process is still awaiting server response, preventing concerns about a stuck process.
+*   **Improved API Key Security**: The API Key is never stored on disk and is now passed securely to the background process via a temporary, self-deleting configuration file, preventing its exposure in process listings. It remains visible during direct input for typo prevention but is hidden in summaries.
+*   **Robust User Input**: Enhanced User Input: Input prompts are now displayed on a separate line from user entry, guaranteeing full backspace and line editing functionality even in problematic terminal environments.
 *   **Process Handling**: Option to stop a running upload process.
-*   **API Key Security**: When entering the API Key, characters will be visible on screen to help you prevent typos. The API Key will not be stored on disk and is hidden in summaries.
 *   **Original Files Retained**: The original data files you upload (e.g., PDFs, images, etc.) will remain in their original location after the upload process is complete.
 *   **Temporary JSON Files Deleted Automatically**: JSON files generated as request payloads and JSON response files from the Dataverse server will be automatically deleted after a successful upload (response files will be retained in case of failure for debugging).
 

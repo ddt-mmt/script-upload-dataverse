@@ -73,9 +73,12 @@ run_upload() {
     MAX_RETRIES=5
     RETRY_DELAY_SECONDS=30
     
-    # Buat file sementara untuk JSON payload
+    # Buat file sementara untuk JSON payload dan config curl
     JSON_PAYLOAD_FILE=$(mktemp)
     echo "$json_content" > "$JSON_PAYLOAD_FILE"
+    
+    CURL_CONFIG_FILE=$(mktemp)
+    echo "header = \"X-Dataverse-key: $api_key\"" > "$CURL_CONFIG_FILE"
 
     CURL_EXIT_CODE=1
     for (( i=1; i<=MAX_RETRIES; i++ )); do
@@ -84,7 +87,7 @@ run_upload() {
         
         curl --progress-bar --tlsv1.2 \
           -o "$output_file" \
-          -H "X-Dataverse-key: $api_key" \
+          --config "$CURL_CONFIG_FILE" \
           -X POST \
           -F "file=@$file_path" \
           -F "jsonData=@$JSON_PAYLOAD_FILE" \
@@ -133,7 +136,8 @@ run_upload() {
         : # No operation
     fi
 
-    rm "$JSON_PAYLOAD_FILE"
+    # Hapus semua file sementara dengan aman
+    rm -f "$JSON_PAYLOAD_FILE" "$CURL_CONFIG_FILE"
 
     echo "================================================================="
     if [ $CURL_EXIT_CODE -eq 0 ]; then
@@ -178,19 +182,19 @@ echo "==========================================================================
 echo
 
 # --- Kredensial & Target ---
-echo -n "$MSG_PROMPT_API_KEY"
-read API_KEY # Tampilkan input agar tidak salah ketik
+echo "$MSG_PROMPT_API_KEY"
+read -e API_KEY # Tampilkan input agar tidak salah ketik
 echo
 [ -z "$API_KEY" ] && { echo "$MSG_API_KEY_EMPTY" >&2; exit 1; }
 
-echo -n "$MSG_PROMPT_PERSISTENT_ID"
-read PERSISTENT_ID
+echo "$MSG_PROMPT_PERSISTENT_ID"
+read -e PERSISTENT_ID
 [ -z "$PERSISTENT_ID" ] && { echo "$MSG_PERSISTENT_ID_EMPTY" >&2; exit 1; }
 
 
 # --- Tipe Unggahan (File atau Folder) ---
-echo -n "$MSG_PROMPT_UPLOAD_TYPE"
-read UPLOAD_TYPE
+echo "$MSG_PROMPT_UPLOAD_TYPE"
+read -e UPLOAD_TYPE
 UPLOAD_TYPE=${UPLOAD_TYPE:-"1"}
 
 declare -a FILE_PATHS
@@ -198,24 +202,24 @@ SOURCE_PATH=""
 
 if [ "$UPLOAD_TYPE" = "1" ]; then
     # --- Unggahan File Tunggal ---
-    echo -n "$MSG_PROMPT_FILE_PATH"
-    read FILE_PATH
+    echo "$MSG_PROMPT_FILE_PATH"
+    read -e FILE_PATH
     while [ ! -f "$FILE_PATH" ]; do
         printf "$MSG_FILE_NOT_FOUND\n" "$FILE_PATH" >&2
-        echo -n "$MSG_PROMPT_FILE_PATH"
-        read FILE_PATH
+        echo "$MSG_PROMPT_FILE_PATH"
+        read -e FILE_PATH
     done
     FILE_PATHS+=("$FILE_PATH")
     SOURCE_PATH="$FILE_PATH"
 
 else
     # --- Unggahan Folder ---
-    echo -n "$MSG_PROMPT_FOLDER_PATH"
-    read FOLDER_PATH
+    echo "$MSG_PROMPT_FOLDER_PATH"
+    read -e FOLDER_PATH
     while [ ! -d "$FOLDER_PATH" ]; do
         printf "$MSG_FOLDER_NOT_FOUND\n" "$FOLDER_PATH" >&2
-        echo -n "$MSG_PROMPT_FOLDER_PATH"
-        read FOLDER_PATH
+        echo "$MSG_PROMPT_FOLDER_PATH"
+        read -e FOLDER_PATH
     done
     SOURCE_PATH="$FOLDER_PATH"
 
@@ -232,21 +236,21 @@ fi
 
 
 # --- Metadata Umum ---
-echo -n "${MSG_PROMPT_DESCRIPTION}[${MSG_DEFAULT_DESCRIPTION}]: "
-read DESCRIPTION
+echo "${MSG_PROMPT_DESCRIPTION}[${MSG_DEFAULT_DESCRIPTION}]:"
+read -e DESCRIPTION
 DESCRIPTION=${DESCRIPTION:-"$MSG_DEFAULT_DESCRIPTION"}
 
 DIRECTORY_LABEL_PROMPT_MSG="$MSG_PROMPT_DIRECTORY_LABEL"
 DEFAULT_DIRECTORY_LABEL_MSG="$MSG_DEFAULT_DIRECTORY_LABEL"
 # Hanya minta label direktori untuk unggahan file tunggal
 if [ "$UPLOAD_TYPE" = "1" ]; then
-    echo -n "${DIRECTORY_LABEL_PROMPT_MSG}[${DEFAULT_DIRECTORY_LABEL_MSG}]: "
-    read DIRECTORY_LABEL
+    echo "${DIRECTORY_LABEL_PROMPT_MSG}[${DEFAULT_DIRECTORY_LABEL_MSG}]:"
+    read -e DIRECTORY_LABEL
     DIRECTORY_LABEL=${DIRECTORY_LABEL:-"$DEFAULT_DIRECTORY_LABEL_MSG"}
 fi
 
-echo -n "${MSG_PROMPT_CATEGORIES}[${MSG_DEFAULT_CATEGORIES}]: "
-read CATEGORIES_INPUT
+echo "${MSG_PROMPT_CATEGORIES}[${MSG_DEFAULT_CATEGORIES}]:"
+read -e CATEGORIES_INPUT
 CATEGORIES_INPUT=${CATEGORIES_INPUT:-"$MSG_DEFAULT_CATEGORIES"}
 
 JSON_CATEGORIES=""
@@ -259,8 +263,8 @@ for category in $CATEGORIES_INPUT; do
 done
 IFS=$OLD_IFS; set +f
 
-echo -n "${MSG_PROMPT_RESTRICT}"
-read RESTRICT_CHOICE
+echo "${MSG_PROMPT_RESTRICT}"
+read -e RESTRICT_CHOICE
 IS_RESTRICTED="false"
 if [[ "$RESTRICT_CHOICE" == "y" || "$RESTRICT_CHOICE" == "Y" ]]; then
     IS_RESTRICTED="true"
@@ -283,8 +287,8 @@ printf "$MSG_UPLOAD_SUMMARY_PERSISTENT_ID\n" "$PERSISTENT_ID"
 echo "$MSG_UPLOAD_SUMMARY_API_KEY"
 echo "================================================================="
 echo
-echo -n "$MSG_UPLOAD_CONFIRM_PROMPT"
-read CONFIRM
+echo "$MSG_UPLOAD_CONFIRM_PROMPT"
+read -e CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
     echo "$MSG_UPLOAD_ABORTED"
     exit 0
@@ -294,6 +298,39 @@ fi
 # --- Fungsi Master Background ---
 # Fungsi ini yang akan dijalankan di background, membungkus semua logika upload
 start_background_process() {
+    # Argumen pertama adalah path ke file config sementara
+    local input_config_file=$1
+    if [ -f "$input_config_file" ]; then
+        # Muat semua variabel dari file config
+        source "$input_config_file"
+        # Hapus file config segera setelah dimuat untuk keamanan
+        rm "$input_config_file"
+    else
+        echo "FATAL: File konfigurasi input tidak ditemukan." >&2
+        rm -f "$PID_FILE" # Hapus PID file jika ada
+        exit 1
+    fi
+
+    # Helper function to convert bytes to a human-readable format
+    human_readable_size() {
+        local bytes=$1
+        # Membutuhkan 'bc' untuk kalkulasi floating point.
+        if ! command -v bc &> /dev/null; then
+            echo "${bytes} B"
+            return
+        fi
+
+        if [ "$bytes" -lt 1024 ]; then
+            echo "${bytes} B"
+        elif [ "$bytes" -lt 1048576 ]; then
+            printf "%.2f KB\n" "$(bc -l <<< "$bytes / 1024")"
+        elif [ "$bytes" -lt 1073741824 ]; then
+            printf "%.2f MB\n" "$(bc -l <<< "$bytes / 1048576")"
+        else
+            printf "%.2f GB\n" "$(bc -l <<< "$bytes / 1073741824")"
+        fi
+    }
+
     if [ "$UPLOAD_TYPE" = "1" ]; then
         # --- Unggah File Tunggal ---
         local file_path="${FILE_PATHS[0]}"
@@ -310,22 +347,30 @@ start_background_process() {
             "$output_file"
     else
         # --- Unggah Folder ---
+        local MASTER_START_TIME=$(date +%s)
+        local TOTAL_FILES_COUNT=${#FILE_PATHS[@]}
+        local SUCCESSFUL_UPLOADS=0
+        local TOTAL_UPLOAD_SIZE=0
+
+        # Hitung total ukuran di awal
+        for file in "${FILE_PATHS[@]}"; do
+            if [ -r "$file" ]; then
+                TOTAL_UPLOAD_SIZE=$((TOTAL_UPLOAD_SIZE + $(stat -c%s "$file")))
+            fi
+        done
+        
         local base_folder_path="$SOURCE_PATH"
         # Pastikan path folder diakhiri slash untuk 'sed'
         [[ "$base_folder_path" != */ ]] && base_folder_path="$base_folder_path/"
 
         for file in "${FILE_PATHS[@]}"; do
-            # Dapatkan path relatif dari file terhadap folder input
             local relative_path=${file#$base_folder_path}
-            # Buat label direktori baru yang mencerminkan struktur folder
             local new_dir_label=$(dirname "$relative_path")
-            # Jika file ada di root folder, dirname akan mengembalikan '.', ganti dengan ""
             [ "$new_dir_label" = "." ] && new_dir_label=""
 
             local file_basename=$(basename "$file")
             local unique_output_file="result_${file_basename%.*}_$(date +%s).json"
 
-            # Panggil fungsi upload untuk setiap file
             run_upload \
                 "$API_KEY" \
                 "$PERSISTENT_ID" \
@@ -336,15 +381,41 @@ start_background_process() {
                 "$IS_RESTRICTED" \
                 "$unique_output_file"
             
-            # Jika sebuah file gagal, hentikan seluruh proses
-            if [ $? -ne 0 ]; then
+            local upload_exit_code=$?
+            if [ $upload_exit_code -ne 0 ]; then
                 printf "$MSG_FOLDER_UPLOAD_FAILED\n" "$file" >&2
-                # Hapus file PID untuk menandakan proses telah berhenti
                 rm -f "$PID_FILE"
-                exit 1
+                exit 1 # Hentikan seluruh proses
+            else
+                SUCCESSFUL_UPLOADS=$((SUCCESSFUL_UPLOADS + 1))
             fi
         done
-        printf "$MSG_ALL_FILES_UPLOADED_SUCCESS\n" "$SOURCE_PATH"
+
+        # --- Cetak Ringkasan Unggahan Folder ---
+        if [ $SUCCESSFUL_UPLOADS -gt 0 ]; then
+            printf "$MSG_ALL_FILES_UPLOADED_SUCCESS\n" "$SOURCE_PATH"
+            
+            local MASTER_END_TIME=$(date +%s)
+            local MASTER_DURATION=$((MASTER_END_TIME - MASTER_START_TIME))
+            
+            local AVG_SPEED_BPS=0
+            if [ $MASTER_DURATION -gt 0 ]; then
+                AVG_SPEED_BPS=$((TOTAL_UPLOAD_SIZE / MASTER_DURATION))
+            fi
+            
+            local AVG_SPEED_HR=$(human_readable_size $AVG_SPEED_BPS)
+            local TOTAL_SIZE_HR=$(human_readable_size $TOTAL_UPLOAD_SIZE)
+            
+            echo
+            echo "================================================================="
+            echo "$MSG_FOLDER_SUMMARY_TITLE"
+            echo "================================================================="
+            printf "$MSG_FOLDER_SUMMARY_TOTAL_SUCCESS\n" "$SUCCESSFUL_UPLOADS" "$TOTAL_FILES_COUNT"
+            printf "$MSG_FOLDER_SUMMARY_TOTAL_SIZE\n" "$TOTAL_SIZE_HR"
+            printf "$MSG_FOLDER_SUMMARY_TOTAL_DURATION\n" "$(($MASTER_DURATION / 60))" "$(($MASTER_DURATION % 60))"
+            printf "$MSG_FOLDER_SUMMARY_AVG_SPEED\n" "$AVG_SPEED_HR"
+            echo "================================================================="
+        fi
     fi
 
     # Hapus file PID setelah SEMUA pekerjaan selesai
@@ -352,7 +423,14 @@ start_background_process() {
 }
 
 
-# 4. Jalankan fungsi master di background
+# 4. Buat file config sementara dan jalankan fungsi master di background
+INPUT_CONFIG_FILE=$(mktemp)
+
+# Simpan semua variabel yang dibutuhkan ke file config
+# Gunakan declare -p untuk menyimpan array dan variabel lain secara aman
+declare -p FILE_PATHS UPLOAD_TYPE SOURCE_PATH >> "$INPUT_CONFIG_FILE"
+declare -p API_KEY PERSISTENT_ID DESCRIPTION DIRECTORY_LABEL JSON_CATEGORIES IS_RESTRICTED >> "$INPUT_CONFIG_FILE"
+
 echo
 echo "$MSG_INFO_RECEIVED_STARTING_BACKGROUND"
 echo "$MSG_MONITOR_FROM_MAIN_MENU"
@@ -361,8 +439,9 @@ echo "$MSG_MONITOR_FROM_MAIN_MENU"
 rm -f "$LOG_FILE"
 touch "$PID_FILE" # Buat file PID kosong untuk mencegah race condition
 
+# Jalankan proses background, berikan path file config sebagai argumen
 (
-    start_background_process
+    start_background_process "$INPUT_CONFIG_FILE"
 ) > "$LOG_FILE" 2>&1 &
 
 # 5. Simpan PID dari proses background
