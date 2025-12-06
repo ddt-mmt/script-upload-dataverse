@@ -240,13 +240,18 @@ echo "${MSG_PROMPT_DESCRIPTION}[${MSG_DEFAULT_DESCRIPTION}]:"
 read -e DESCRIPTION
 DESCRIPTION=${DESCRIPTION:-"$MSG_DEFAULT_DESCRIPTION"}
 
-DIRECTORY_LABEL_PROMPT_MSG="$MSG_PROMPT_DIRECTORY_LABEL"
-DEFAULT_DIRECTORY_LABEL_MSG="$MSG_DEFAULT_DIRECTORY_LABEL"
+DIRECTORY_LABEL=""
 # Hanya minta label direktori untuk unggahan file tunggal
 if [ "$UPLOAD_TYPE" = "1" ]; then
+    DIRECTORY_LABEL_PROMPT_MSG="$MSG_PROMPT_DIRECTORY_LABEL"
+    DEFAULT_DIRECTORY_LABEL_MSG="$MSG_DEFAULT_DIRECTORY_LABEL"
     echo "${DIRECTORY_LABEL_PROMPT_MSG}[${DEFAULT_DIRECTORY_LABEL_MSG}]:"
     read -e DIRECTORY_LABEL
     DIRECTORY_LABEL=${DIRECTORY_LABEL:-"$DEFAULT_DIRECTORY_LABEL_MSG"}
+# Untuk unggahan folder, tanyakan label direktori dasar (opsional)
+else
+    echo "$MSG_PROMPT_BASE_DIRECTORY_LABEL"
+    read -e DIRECTORY_LABEL
 fi
 
 echo "${MSG_PROMPT_CATEGORIES}[${MSG_DEFAULT_CATEGORIES}]:"
@@ -360,15 +365,34 @@ start_background_process() {
         done
         
         local base_folder_path="$SOURCE_PATH"
+
+        # Tentukan direktori dasar untuk label
+        local base_dir_label
+        if [ -n "$DIRECTORY_LABEL" ]; then
+            base_dir_label="$DIRECTORY_LABEL"
+        else
+            base_dir_label=$(basename "$SOURCE_PATH")
+        fi
+
         # Pastikan path folder diakhiri slash untuk 'sed'
         [[ "$base_folder_path" != */ ]] && base_folder_path="$base_folder_path/"
 
         for file in "${FILE_PATHS[@]}"; do
             local relative_path=${file#$base_folder_path}
-            local new_dir_label=$(dirname "$relative_path")
-            [ "$new_dir_label" = "." ] && new_dir_label=""
+            local sub_dir
+            sub_dir=$(dirname "$relative_path")
 
-            local file_basename=$(basename "$file")
+            local new_dir_label
+            # Jika file ada di root folder, labelnya adalah direktori dasar
+            if [ "$sub_dir" = "." ]; then
+                new_dir_label="$base_dir_label"
+            # Jika file ada di sub-direktori, gabungkan
+            else
+                new_dir_label="$base_dir_label/$sub_dir"
+            fi
+
+            local file_basename
+            file_basename=$(basename "$file")
             local unique_output_file="result_${file_basename%.*}_$(date +%s).json"
 
             run_upload \

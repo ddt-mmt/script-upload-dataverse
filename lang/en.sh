@@ -95,6 +95,7 @@ MSG_ERROR_FILE_SIZE_EXCEEDS="ERROR: Your file size (%s GB) exceeds the maximum l
 MSG_PROMPT_DESCRIPTION="File description [Large file upload]: "
 MSG_DEFAULT_DESCRIPTION="Large file upload"
 MSG_PROMPT_DIRECTORY_LABEL="Directory label [data/subdir1]: "
+MSG_PROMPT_BASE_DIRECTORY_LABEL="Enter Base Directory Label (optional, leave blank to use local folder name):"
 MSG_DEFAULT_DIRECTORY_LABEL="data/subdir1"
 MSG_PROMPT_CATEGORIES="Categories (comma-separated) [Data]: "
 MSG_DEFAULT_CATEGORIES="Data"

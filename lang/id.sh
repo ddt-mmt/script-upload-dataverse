@@ -97,6 +97,7 @@ MSG_ERROR_FILE_SIZE_EXCEEDS="KESALAHAN: Ukuran file (%s GB) melebihi batas (70 G
 MSG_PROMPT_DESCRIPTION="Deskripsi file [Upload file besar]: "
 MSG_DEFAULT_DESCRIPTION="Upload file besar"
 MSG_PROMPT_DIRECTORY_LABEL="Label direktori [data/subdir1]: "
+MSG_PROMPT_BASE_DIRECTORY_LABEL="Masukkan Label Direktori Dasar (opsional, biarkan kosong untuk menggunakan nama folder lokal):"
 MSG_DEFAULT_DIRECTORY_LABEL="data/subdir1"
 MSG_PROMPT_CATEGORIES="Kategori (pisahkan koma) [Data]: "
 MSG_DEFAULT_CATEGORIES="Data"
