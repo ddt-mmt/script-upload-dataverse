@@ -76,7 +76,14 @@ Choose an option:
 ### Menu Options
 
 *   **Start New Upload Process (1 or 's')**:
-    *   Will prompt you to enter upload details such as API Key, Persistent ID, file path, description, etc.
+    *   Will prompt you to enter upload details such as API Key, Persistent ID, description, etc.
+    *   **Upload Type (1=File, 2=Folder)**:
+        *   **File Upload**: You will be asked for the exact file path and a 'Directory label' where the file will be placed within the Dataverse dataset.
+        *   **Folder Upload**:
+            1.  You will specify the full path to your local folder.
+            2.  You will then be prompted for a 'Base Directory Label'. This input is **optional**:
+                *   If you **provide a label** (e.g., `my_existing_folder`), all files from your local folder will be uploaded into that existing directory structure within Dataverse, preserving their relative subfolder structure (e.g., `my_existing_folder/subfolder/file.txt`).
+                *   If you **leave it blank**, the name of your local folder (e.g., `local_folder_name`) will be automatically used as the base directory label, and all files will be placed under it (e.g., `local_folder_name/subfolder/file.txt`).
     *   The upload process will start in the background.
     *   **IMPORTANT**: When entering the API Key, characters will be visible on screen to help you prevent typos. The API Key will not be stored on disk.
 
