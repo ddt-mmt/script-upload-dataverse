@@ -1,63 +1,58 @@
 #!/bin/bash
 
-# Mengambil variabel global dari skrip utama
-RUN_DIR="run"
-PID_FILE="$RUN_DIR/upload.pid"
-LOG_FILE="$RUN_DIR/upload.log"
-CONFIG_FILE="$RUN_DIR/config.sh"
-LANG_DIR="lang"
+# --- Inisialisasi Berbasis Job ---
+if [ -z "$1" ]; then
+    echo "FATAL: Job ID tidak diberikan." >&2
+    exit 1
+fi
+JOB_ID="$1"
+JOB_DIR="run/jobs/$JOB_ID"
+LOG_FILE="$JOB_DIR/upload.log"
+PID_FILE="$JOB_DIR/upload.pid"
 
-# Pastikan direktori lang ada
-if [ ! -d "$LANG_DIR" ]; then
-    echo "Error: Direktori bahasa '$LANG_DIR' tidak ditemukan. Pastikan file bahasa ada." >&2
+# --- Muat Bahasa (opsional, untuk pesan yang konsisten) ---
+LANG_DIR="lang"
+GLOBAL_CONFIG_FILE="run/config.sh"
+if [ -f "$GLOBAL_CONFIG_FILE" ]; then
+    source "$GLOBAL_CONFIG_FILE"
+fi
+if [ -f "$LANG_DIR/${LANG_CODE:-id}.sh" ]; then
+    source "$LANG_DIR/${LANG_CODE:-id}.sh"
+else
+    source "$LANG_DIR/id.sh"
+fi
+
+# --- Logika Utama Monitor ---
+clear
+echo "$MSG_MONITOR_UPLOAD_TITLE"
+echo "========================================"
+printf "Job ID: %s\n" "$JOB_ID"
+echo "========================================"
+echo
+
+# Cek apakah file log ada
+if [ ! -f "$LOG_FILE" ]; then
+    echo "File log untuk job ini belum dibuat."
+    sleep 2
     exit 1
 fi
 
-# Muat preferensi bahasa
-if [ -f "$CONFIG_FILE" ]; then
-    source "$CONFIG_FILE"
-else
-    # Jika tidak ada config, default ke id
-    LANG_CODE="id"
+# Cek apakah proses masih berjalan
+pid=
+if [ -f "$PID_FILE" ]; then
+    pid=$(cat "$PID_FILE")
 fi
 
-# Fungsi untuk memuat pesan bahasa (duplikasi dari upload_dataverse.sh untuk kemandirian)
-load_language_messages() {
-    local lang_code=$1
-    if [ -f "$LANG_DIR/$lang_code.sh" ]; then
-        source "$LANG_DIR/$lang_code.sh"
-    else
-        # Fallback ke Bahasa Indonesia jika file bahasa tidak ditemukan
-        source "$LANG_DIR/id.sh"
-        echo "Peringatan: File bahasa '$lang_code.sh' tidak ditemukan. Menggunakan Bahasa Indonesia." >&2
-    fi
-}
-load_language_messages "$LANG_CODE"
-
-
-echo "$MSG_MONITOR_UPLOAD_TITLE"
-
-# Cek apakah file PID ada
-if [ ! -f "$PID_FILE" ]; then
-    echo "$MSG_NO_UPLOAD_RUNNING"
-    exit 0
-fi
-
-PID=$(cat "$PID_FILE")
-
-# Cek apakah proses dengan PID tersebut benar-benar berjalan
-if ! ps -p "$PID" > /dev/null; then
-    printf "$MSG_PROCESS_NOT_RUNNING\n" "$PID"
+if [ -z "$pid" ] || ! ps -p "$pid" > /dev/null; then
+    printf "$MSG_PROCESS_NOT_RUNNING\n" "$pid"
     echo "$MSG_PROCESS_FINISHED_OR_FAILED"
-    exit 0
+    echo "----------------------------------------"
+    # Tampilkan 20 baris terakhir dari log jika proses sudah tidak ada
+    tail -n 20 "$LOG_FILE"
+else
+    printf "$MSG_PROCESS_RUNNING\n" "$pid"
+    echo "$MSG_MONITORING_LOG_REALTIME"
+    echo "----------------------------------------"
+    # Tampilkan log secara real-time
+    tail -f "$LOG_FILE"
 fi
-
-printf "$MSG_PROCESS_RUNNING\n" "$PID"
-echo "$MSG_MONITORING_LOG_REALTIME"
-echo "$MSG_PROGRESS_BAR_NOTE"
-echo "----------------------------------------------------------------------"
-echo ""
-
-# Tampilkan log secara real-time
-# Opsi --follow=name --retry membuat tail lebih tangguh jika file log dirotasi/dihapus
-tail -f --follow=name --retry "$LOG_FILE"

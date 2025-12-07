@@ -146,3 +146,46 @@ MSG_FOLDER_SUMMARY_TOTAL_SUCCESS="Files successfully uploaded: %s of %s"
 MSG_FOLDER_SUMMARY_TOTAL_SIZE="Total uploaded size      : %s"
 MSG_FOLDER_SUMMARY_TOTAL_DURATION="Total duration           : %s minutes %s seconds"
 MSG_FOLDER_SUMMARY_AVG_SPEED="Average speed          : %s/s"
+
+# --- Messages for Generic Final Summary ---
+MSG_FINAL_SUMMARY_TITLE="--- FINAL UPLOAD SUMMARY ---"
+MSG_FINAL_SUMMARY_FILES_UPLOADED="Successfully uploaded files: %s"
+MSG_FINAL_SUMMARY_TOTAL_SIZE="Total uploaded size      : %s"
+MSG_FINAL_SUMMARY_TOTAL_DURATION="Total duration           : %s minutes %s seconds"
+MSG_FINAL_SUMMARY_AVG_SPEED="Average speed            : %s/s"
+
+# ==============================================================================
+# --- Messages for Multi-Job Functionality ---
+# ==============================================================================
+
+# --- Multi-Job Main Menu ---
+MSG_MULTijOB_TITLE="NETLOAD (Multi-Job)"
+MSG_MENU_START_NEW_JOB="1. Start New Upload Job"
+MSG_MENU_MANAGE_ACTIVE_JOBS="2. View and Manage Active Jobs"
+MSG_MENU_VIEW_JOB_HISTORY="3. View Job History"
+# Options 4 & 5 (Change Language & Exit) use existing strings
+
+# --- Job Management ---
+MSG_MANAGE_ACTIVE_JOBS_TITLE="--- Manage Active Jobs ---"
+MSG_NO_ACTIVE_JOBS="There are no active jobs."
+MSG_JOB_LIST_HEADER_ID="Job ID"
+MSG_JOB_LIST_HEADER_PID="PID"
+MSG_JOB_LIST_HEADER_START_TIME="Start Time"
+MSG_JOB_LIST_HEADER_SOURCE="Source"
+MSG_SELECT_JOB_PROMPT="Enter Job ID to manage (or 'q' to quit): "
+MSG_JOB_ID_NOT_FOUND="Job ID '%s' not found or is not active."
+MSG_JOB_ACTION_PROMPT="Choose action for Job %s [1-Monitor, 2-Stop, q-Back]: "
+MSG_RETURNING_TO_MAIN_MENU="Returning to the main menu..."
+
+# --- Job History ---
+MSG_JOB_HISTORY_TITLE="--- Job History ---"
+MSG_NO_COMPLETED_JOBS="No job history found."
+MSG_JOB_HISTORY_HEADER_STATUS="Status"
+MSG_JOB_HISTORY_STATUS_COMPLETED="COMPLETED"
+MSG_JOB_HISTORY_STATUS_FAILED="FAILED"
+MSG_JOB_HISTORY_STATUS_STOPPED="STOPPED"
+MSG_SELECT_JOB_LOG_PROMPT="Enter Job ID to view log (or 'q' to quit): "
+
+# --- Other Statuses & Messages ---
+MSG_JOB_STARTED="New job started with ID: %s"
+MSG_FAILED_TO_CREATE_JOB_DIR="Failed to create directory for Job ID: %s"

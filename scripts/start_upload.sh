@@ -1,11 +1,27 @@
 #!/bin/bash
 
-# File status dan log
-# Mengambil variabel global dari skrip utama
-RUN_DIR="run"
-PID_FILE="$RUN_DIR/upload.pid"
-LOG_FILE="$RUN_DIR/upload.log"
-CONFIG_FILE="$RUN_DIR/config.sh"
+# --- Inisialisasi Berbasis Job ---
+if [ -z "$1" ]; then
+    echo "FATAL: Job ID tidak diberikan." >&2
+    exit 1
+fi
+
+JOB_ID="$1"
+JOBS_DIR="run/jobs"
+JOB_DIR="$JOBS_DIR/$JOB_ID"
+
+# Semua path sekarang relatif terhadap direktori job
+PID_FILE="$JOB_DIR/upload.pid"
+LOG_FILE="$JOB_DIR/upload.log" # Log utama proses akan diarahkan ke sini
+STATUS_FILE="$JOB_DIR/status" # File untuk status: running, completed, failed, stopped
+CONFIG_FILE_TMP="$JOB_DIR/config_tmp.sh" # File config sementara untuk proses background
+
+# Pastikan direktori job ada
+mkdir -p "$JOB_DIR"
+
+# File konfigurasi & bahasa global
+GLOBAL_RUN_DIR="run"
+GLOBAL_CONFIG_FILE="$GLOBAL_RUN_DIR/config.sh"
 LANG_DIR="lang"
 
 # Pastikan direktori lang ada
@@ -159,18 +175,7 @@ run_upload() {
 
 # --- Logika Utama Skrip ---
 
-# 1. Cek apakah proses lain sedang berjalan
-if [ -f "$PID_FILE" ]; then
-    echo "$MSG_ERROR_ANOTHER_UPLOAD_RUNNING"
-    echo "$MSG_MONITOR_OR_STOP_FROM_MENU"
-    exit 1
-fi
-
-# 2. Hapus log lama dan siapkan file PID
-# Lakukan ini setelah mendapat konfirmasi dari pengguna
-# rm -f "$LOG_FILE"
-
-# 3. Kumpulkan informasi dari pengguna
+# 1. Kumpulkan informasi dari pengguna
 clear
 echo "$MSG_START_NEW_UPLOAD_PROMPT_TITLE"
 echo "$MSG_ENTER_UPLOAD_DETAILS_BACKGROUND"
@@ -233,6 +238,9 @@ else
         exit 0
     fi
 fi
+
+# Simpan informasi sumber untuk dapat dibaca oleh menu utama
+echo "SOURCE_PATH=\"$SOURCE_PATH\"" > "$JOB_DIR/job_info.txt"
 
 
 # --- Metadata Umum ---
@@ -312,9 +320,13 @@ start_background_process() {
         rm "$input_config_file"
     else
         echo "FATAL: File konfigurasi input tidak ditemukan." >&2
+        echo "FAILED" > "$STATUS_FILE"
         rm -f "$PID_FILE" # Hapus PID file jika ada
         exit 1
     fi
+
+    # Tandai status sebagai berjalan
+    echo "running" > "$STATUS_FILE"
 
     # Helper function to convert bytes to a human-readable format
     human_readable_size() {
@@ -336,6 +348,43 @@ start_background_process() {
         fi
     }
 
+    # --- Fungsi untuk mencetak ringkasan akhir ---
+    print_final_summary() {
+        local successful_uploads=$1
+        local total_size_bytes=$2
+        local start_time=$3
+        local end_time=$4
+
+        if [ "$successful_uploads" -gt 0 ]; then
+            local duration=$((end_time - start_time))
+            # Hindari pembagian dengan nol jika durasi sangat singkat
+            if [ $duration -eq 0 ]; then
+                duration=1
+            fi
+            local avg_speed_bps=$((total_size_bytes / duration))
+            
+            local total_size_hr
+            total_size_hr=$(human_readable_size "$total_size_bytes")
+            local avg_speed_hr
+            avg_speed_hr=$(human_readable_size "$avg_speed_bps")
+
+            echo
+            echo "================================================================="
+            echo "$MSG_FINAL_SUMMARY_TITLE"
+            echo "================================================================="
+            printf "$MSG_FINAL_SUMMARY_FILES_UPLOADED\n" "$successful_uploads"
+            printf "$MSG_FINAL_SUMMARY_TOTAL_SIZE\n" "$total_size_hr"
+            printf "$MSG_FINAL_SUMMARY_TOTAL_DURATION\n" "$((duration / 60))" "$((duration % 60))"
+            printf "$MSG_FINAL_SUMMARY_AVG_SPEED\n" "$avg_speed_hr/s"
+            echo "================================================================="
+        fi
+    }
+
+
+    local MASTER_START_TIME
+    MASTER_START_TIME=$(date +%s)
+    local final_exit_code=0
+
     if [ "$UPLOAD_TYPE" = "1" ]; then
         # --- Unggah File Tunggal ---
         local file_path="${FILE_PATHS[0]}"
@@ -350,19 +399,23 @@ start_background_process() {
             "$JSON_CATEGORIES" \
             "$IS_RESTRICTED" \
             "$output_file"
+        
+        local upload_exit_code=$?
+        if [ $upload_exit_code -eq 0 ]; then
+            local file_size
+            file_size=$(stat -c%s "$file_path")
+            local MASTER_END_TIME
+            MASTER_END_TIME=$(date +%s)
+            print_final_summary 1 "$file_size" "$MASTER_START_TIME" "$MASTER_END_TIME"
+        else
+            final_exit_code=$upload_exit_code
+        fi
+
     else
         # --- Unggah Folder ---
-        local MASTER_START_TIME=$(date +%s)
         local TOTAL_FILES_COUNT=${#FILE_PATHS[@]}
         local SUCCESSFUL_UPLOADS=0
         local TOTAL_UPLOAD_SIZE=0
-
-        # Hitung total ukuran di awal
-        for file in "${FILE_PATHS[@]}"; do
-            if [ -r "$file" ]; then
-                TOTAL_UPLOAD_SIZE=$((TOTAL_UPLOAD_SIZE + $(stat -c%s "$file")))
-            fi
-        done
         
         local base_folder_path="$SOURCE_PATH"
 
@@ -383,10 +436,8 @@ start_background_process() {
             sub_dir=$(dirname "$relative_path")
 
             local new_dir_label
-            # Jika file ada di root folder, labelnya adalah direktori dasar
             if [ "$sub_dir" = "." ]; then
                 new_dir_label="$base_dir_label"
-            # Jika file ada di sub-direktori, gabungkan
             else
                 new_dir_label="$base_dir_label/$sub_dir"
             fi
@@ -408,38 +459,30 @@ start_background_process() {
             local upload_exit_code=$?
             if [ $upload_exit_code -ne 0 ]; then
                 printf "$MSG_FOLDER_UPLOAD_FAILED\n" "$file" >&2
-                rm -f "$PID_FILE"
-                exit 1 # Hentikan seluruh proses
+                final_exit_code=$upload_exit_code
+                break # Hentikan loop jika ada satu file yang gagal
             else
                 SUCCESSFUL_UPLOADS=$((SUCCESSFUL_UPLOADS + 1))
+                if [ -r "$file" ]; then
+                    TOTAL_UPLOAD_SIZE=$((TOTAL_UPLOAD_SIZE + $(stat -c%s "$file")))
+                fi
             fi
         done
 
         # --- Cetak Ringkasan Unggahan Folder ---
         if [ $SUCCESSFUL_UPLOADS -gt 0 ]; then
             printf "$MSG_ALL_FILES_UPLOADED_SUCCESS\n" "$SOURCE_PATH"
-            
-            local MASTER_END_TIME=$(date +%s)
-            local MASTER_DURATION=$((MASTER_END_TIME - MASTER_START_TIME))
-            
-            local AVG_SPEED_BPS=0
-            if [ $MASTER_DURATION -gt 0 ]; then
-                AVG_SPEED_BPS=$((TOTAL_UPLOAD_SIZE / MASTER_DURATION))
-            fi
-            
-            local AVG_SPEED_HR=$(human_readable_size $AVG_SPEED_BPS)
-            local TOTAL_SIZE_HR=$(human_readable_size $TOTAL_UPLOAD_SIZE)
-            
-            echo
-            echo "================================================================="
-            echo "$MSG_FOLDER_SUMMARY_TITLE"
-            echo "================================================================="
-            printf "$MSG_FOLDER_SUMMARY_TOTAL_SUCCESS\n" "$SUCCESSFUL_UPLOADS" "$TOTAL_FILES_COUNT"
-            printf "$MSG_FOLDER_SUMMARY_TOTAL_SIZE\n" "$TOTAL_SIZE_HR"
-            printf "$MSG_FOLDER_SUMMARY_TOTAL_DURATION\n" "$(($MASTER_DURATION / 60))" "$(($MASTER_DURATION % 60))"
-            printf "$MSG_FOLDER_SUMMARY_AVG_SPEED\n" "$AVG_SPEED_HR"
-            echo "================================================================="
+            local MASTER_END_TIME
+            MASTER_END_TIME=$(date +%s)
+            print_final_summary "$SUCCESSFUL_UPLOADS" "$TOTAL_UPLOAD_SIZE" "$MASTER_START_TIME" "$MASTER_END_TIME"
         fi
+    fi
+
+    # --- Finalisasi Status ---
+    if [ $final_exit_code -eq 0 ]; then
+        echo "COMPLETED" > "$STATUS_FILE"
+    else
+        echo "FAILED" > "$STATUS_FILE"
     fi
 
     # Hapus file PID setelah SEMUA pekerjaan selesai

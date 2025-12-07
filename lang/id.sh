@@ -148,3 +148,46 @@ MSG_FOLDER_SUMMARY_TOTAL_SUCCESS="File berhasil diunggah : %s dari %s"
 MSG_FOLDER_SUMMARY_TOTAL_SIZE="Total ukuran diunggah : %s"
 MSG_FOLDER_SUMMARY_TOTAL_DURATION="Total durasi         : %s menit %s detik"
 MSG_FOLDER_SUMMARY_AVG_SPEED="Kecepatan rata-rata  : %s/s"
+
+# --- Pesan untuk Ringkasan Akhir Generik ---
+MSG_FINAL_SUMMARY_TITLE="--- RINGKASAN AKHIR UNGGAHAN ---"
+MSG_FINAL_SUMMARY_FILES_UPLOADED="Jumlah file berhasil diunggah: %s"
+MSG_FINAL_SUMMARY_TOTAL_SIZE="Total ukuran diunggah      : %s"
+MSG_FINAL_SUMMARY_TOTAL_DURATION="Total durasi               : %s menit %s detik"
+MSG_FINAL_SUMMARY_AVG_SPEED="Kecepatan rata-rata      : %s/s"
+
+# ==============================================================================
+# --- Pesan untuk Fungsionalitas Multi-Job ---
+# ==============================================================================
+
+# --- Menu Utama Multi-Job ---
+MSG_MULTijOB_TITLE="NETLOAD (Multi-Job)"
+MSG_MENU_START_NEW_JOB="1. Mulai Job Unggahan Baru"
+MSG_MENU_MANAGE_ACTIVE_JOBS="2. Lihat dan Kelola Job Aktif"
+MSG_MENU_VIEW_JOB_HISTORY="3. Lihat Riwayat Job"
+# Pilihan 4 & 5 (Ganti Bahasa & Keluar) menggunakan string yang sudah ada
+
+# --- Pengelolaan Job ---
+MSG_MANAGE_ACTIVE_JOBS_TITLE="--- Kelola Job Aktif ---"
+MSG_NO_ACTIVE_JOBS="Tidak ada job yang sedang berjalan."
+MSG_JOB_LIST_HEADER_ID="ID Job"
+MSG_JOB_LIST_HEADER_PID="PID"
+MSG_JOB_LIST_HEADER_START_TIME="Waktu Mulai"
+MSG_JOB_LIST_HEADER_SOURCE="Sumber"
+MSG_SELECT_JOB_PROMPT="Masukkan ID Job untuk dikelola (atau 'q' untuk kembali): "
+MSG_JOB_ID_NOT_FOUND="ID Job '%s' tidak ditemukan atau tidak aktif."
+MSG_JOB_ACTION_PROMPT="Pilih tindakan untuk Job %s [1-Pantau, 2-Hentikan, q-Kembali]: "
+MSG_RETURNING_TO_MAIN_MENU="Kembali ke menu utama..."
+
+# --- Riwayat Job ---
+MSG_JOB_HISTORY_TITLE="--- Riwayat Job ---"
+MSG_NO_COMPLETED_JOBS="Tidak ada riwayat job yang ditemukan."
+MSG_JOB_HISTORY_HEADER_STATUS="Status"
+MSG_JOB_HISTORY_STATUS_COMPLETED="SELESAI"
+MSG_JOB_HISTORY_STATUS_FAILED="GAGAL"
+MSG_JOB_HISTORY_STATUS_STOPPED="DIHENTIKAN"
+MSG_SELECT_JOB_LOG_PROMPT="Masukkan ID Job untuk melihat log (atau 'q' untuk kembali): "
+
+# --- Status & Pesan Lain ---
+MSG_JOB_STARTED="Job baru dimulai dengan ID: %s"
+MSG_FAILED_TO_CREATE_JOB_DIR="Gagal membuat direktori untuk Job ID: %s"
